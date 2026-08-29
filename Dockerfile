@@ -2,21 +2,18 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
-COPY server/package.json ./server/
-COPY client/package.json ./client/
+# Copy root and server package files
+COPY package*.json ./
+COPY server/ ./server/
 
-# Install dependencies
+# Install server dependencies only (production)
 RUN cd server && npm install --production && cd ..
-RUN cd client && npm install && npm run build && cd ..
 
-# Copy source code
-COPY server ./server
-COPY client ./client
+# Create uploads directory
+RUN mkdir -p uploads/logos
 
-# Expose port
+# Expose port (Railway uses PORT env var, default 3000)
 EXPOSE 3000
 
-# Start server
+# Start Express server
 CMD ["node", "server/src/app.js"]
