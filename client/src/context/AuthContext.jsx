@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
+
+// 2 Minutes Inactivity Auto-Logout (120,000 milliseconds)
+const INACTIVITY_LIMIT_MS = 2 * 60 * 1000;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
@@ -17,46 +20,93 @@ export const AuthProvider = ({ children }) => {
   const [platformSettings, setPlatformSettings] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchPlatformSettings = async () => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {}
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('compliance_token');
+    localStorage.removeItem('compliance_user');
+  }, []);
+
+  const fetchPlatformSettings = useCallback(async () => {
     try {
       const res = await api.get('/public/settings');
-      if (res.data.success && res.data.data) {
+      if (res.data?.success && res.data?.data) {
         setPlatformSettings(res.data.data);
       }
     } catch {}
-  };
-
-  useEffect(() => {
-    fetchPlatformSettings();
   }, []);
 
   useEffect(() => {
-    const fetchMe = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+    const initAuth = async () => {
       try {
-        const res = await api.get('/auth/me');
-        if (res.data.success && res.data.data.user) {
-          const freshUser = res.data.data.user;
+        const promises = [api.get('/public/settings').catch(() => null)];
+        if (token) {
+          promises.push(api.get('/auth/me').catch(() => null));
+        }
+
+        const [settingsRes, meRes] = await Promise.all(promises);
+
+        if (settingsRes?.data?.success && settingsRes.data.data) {
+          setPlatformSettings(settingsRes.data.data);
+        }
+
+        if (meRes?.data?.success && meRes.data.data?.user) {
+          const freshUser = meRes.data.data.user;
           setUser(freshUser);
           localStorage.setItem('compliance_user', JSON.stringify(freshUser));
+        } else if (token && meRes && !meRes.data?.success) {
+          logout();
         }
       } catch (err) {
-        logout();
+        console.error('Auth initialization error:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMe();
-  }, [token]);
+    initAuth();
+  }, [token, logout]);
+
+  // 2 Minutes Inactivity Auto-Logout Effect
+  useEffect(() => {
+    if (!token || !user) return;
+
+    let timer;
+
+    const resetInactivityTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        logout();
+        toast.error('Warbixin: Akoonkaagu si toos ah ayuu u xirmay amniga dhiiggisa darteed ka dib 2 daqiiqo oo aadan isticmaalin (2 min inactivity auto-logout).', {
+          id: 'auto-logout-toast',
+          duration: 6000,
+        });
+      }, INACTIVITY_LIMIT_MS);
+    };
+
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    events.forEach((evt) => {
+      window.addEventListener(evt, resetInactivityTimer, { passive: true });
+    });
+
+    resetInactivityTimer();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach((evt) => {
+        window.removeEventListener(evt, resetInactivityTimer);
+      });
+    };
+  }, [token, user, logout]);
 
   const login = async (username, password) => {
     try {
       const res = await api.post('/auth/login', { username, password });
-      if (res.data.success) {
+      if (res.data?.success) {
         const { token: newToken, user: newUser } = res.data.data;
         setToken(newToken);
         setUser(newUser);
@@ -73,14 +123,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch {}
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('compliance_token');
-    localStorage.removeItem('compliance_user');
+  const handleLogout = async () => {
+    await logout();
     toast.success('Logged out successfully');
   };
 
@@ -94,7 +138,7 @@ export const AuthProvider = ({ children }) => {
         token,
         loading,
         login,
-        logout,
+        logout: handleLogout,
         isPlatformAdmin,
         isOrgUser,
         isAuthenticated: !!user && !!token,

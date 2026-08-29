@@ -22,6 +22,21 @@ export const getOverview = asyncHandler(async (req, res) => {
   });
 });
 
+export const updateProfile = asyncHandler(async (req, res) => {
+  const updatedOrg = await orgService.updateOrganization(
+    req.organizationId,
+    req.body,
+    null,
+    req.user
+  );
+
+  res.status(200).json({
+    success: true,
+    message: 'Organization profile and email updated successfully',
+    data: { organization: updatedOrg },
+  });
+});
+
 export const getSubmissions = asyncHandler(async (req, res) => {
   const result = await submissionService.getSubmissionsList({
     ...req.query,

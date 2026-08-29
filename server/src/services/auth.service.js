@@ -145,6 +145,7 @@ export const updateUsername = async (userId, role, newUsername) => {
 
 import { PasswordReset } from '../models/PasswordReset.js';
 import { PlatformSettings } from '../models/PlatformSettings.js';
+import { Organization } from '../models/Organization.js';
 import { sendPasswordResetEmail } from '../integrations/email/email.service.js';
 
 /**

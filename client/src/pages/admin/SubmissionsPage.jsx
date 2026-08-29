@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../utils/api';
 import { DataTable } from '../../components/DataTable';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -8,20 +9,14 @@ import {
   AlertCircle,
   MessageSquareShare,
   Eye,
-  Filter,
   Download,
   Building2,
-  Calendar,
-  Phone,
-  Tag,
   CheckCircle,
-  Clock,
-  XCircle,
-  Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const SubmissionsPage = () => {
+  const location = useLocation();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -38,6 +33,17 @@ export const SubmissionsPage = () => {
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateNotes, setUpdateNotes] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Route-based strict type filtering (/complaints vs /feedback vs /submissions)
+  useEffect(() => {
+    if (location.pathname.includes('/complaints')) {
+      setTypeFilter('COMPLAINT');
+    } else if (location.pathname.includes('/feedback')) {
+      setTypeFilter('FEEDBACK');
+    } else {
+      setTypeFilter('');
+    }
+  }, [location.pathname]);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -99,20 +105,14 @@ export const SubmissionsPage = () => {
         fetchSubmissions();
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update submission status');
+      toast.error(err.response?.data?.message || 'Failed to update status');
     } finally {
       setUpdating(false);
     }
   };
 
-  const handleExportCsv = async () => {
-    try {
-      window.open('/api/admin/reports/export/csv', '_blank');
-      toast.success('Exporting all submissions to CSV...');
-    } catch (err) {
-      toast.error('Failed to export CSV');
-    }
-  };
+  const isComplaintsRoute = location.pathname.includes('/complaints');
+  const isFeedbackRoute = location.pathname.includes('/feedback');
 
   const columns = [
     {
@@ -121,42 +121,43 @@ export const SubmissionsPage = () => {
       render: (sub) => (
         <span
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold ${
-            sub.type === 'CABASHO'
-              ? 'bg-rose-100 text-rose-800'
-              : 'bg-blue-100 text-blue-800'
+            sub.type === 'COMPLAINT' || sub.type === 'CABASHO'
+              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+              : 'bg-blue-100 text-blue-800 border border-blue-200'
           }`}
         >
-          {sub.type === 'CABASHO' ? (
-            <AlertCircle className="w-3.5 h-3.5" />
+          {sub.type === 'COMPLAINT' || sub.type === 'CABASHO' ? (
+            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
           ) : (
-            <MessageSquareShare className="w-3.5 h-3.5" />
+            <MessageSquareShare className="w-3.5 h-3.5 text-blue-600" />
           )}
-          {sub.type === 'CABASHO' ? 'Cabasho (Complaint)' : 'Talo (Feedback)'}
+          {sub.type === 'COMPLAINT' || sub.type === 'CABASHO' ? 'CABASHO' : 'TALO'}
         </span>
       ),
     },
     {
-      header: 'Institution',
+      header: 'Organization',
       render: (sub) => (
-        <div>
-          <p className="font-bold text-[#2F2E2D]">
-            {sub.organizationId?.displayTitle || sub.organizationId?.name || '—'}
-          </p>
-          <p className="text-[11px] text-[#5A5856]">
-            {sub.organizationId?.organizationType || 'Institution'}
-          </p>
+        <div className="flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-[#0086FF]" />
+          <div>
+            <p className="font-bold text-xs text-[#2F2E2D]">
+              {sub.organizationId?.displayTitle || sub.organizationId?.name || 'Institution'}
+            </p>
+            <p className="text-[10px] text-slate-400">{sub.organizationId?.organizationType}</p>
+          </div>
         </div>
       ),
     },
     {
-      header: 'Category & Snippet',
+      header: 'Category & Message',
       render: (sub) => (
-        <div className="max-w-xs">
+        <div className="max-w-md">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
             {sub.category || 'General'}
           </span>
-          <p className="text-xs text-[#2F2E2D] font-medium mt-1 line-clamp-1">
-            {sub.content}
+          <p className="text-xs text-[#2F2E2D] font-medium mt-1 line-clamp-2">
+            {sub.content || sub.message}
           </p>
         </div>
       ),
@@ -198,40 +199,50 @@ export const SubmissionsPage = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Header */}
+      {/* Dynamic Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D]">
-            Citizen Complaints & Feedback Console
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D] flex items-center gap-2.5">
+            {isComplaintsRoute ? (
+              <>
+                <AlertCircle className="w-6 h-6 text-rose-600" />
+                All Platform Citizen Complaints (Cabashooyin Only)
+              </>
+            ) : isFeedbackRoute ? (
+              <>
+                <MessageSquareShare className="w-6 h-6 text-[#0086FF]" />
+                All Platform Citizen Suggestions & Feedback (Talooyin Only)
+              </>
+            ) : (
+              'All Platform Citizen Submissions'
+            )}
           </h1>
           <p className="text-xs text-[#5A5856]">
-            Review all anonymous submissions received through institutional QR codes.
+            {isComplaintsRoute
+              ? 'Dhammaan cabashooyinka macaamiisha ee guud ahaan platform-ka (Cabashooyinka kaliya).'
+              : isFeedbackRoute
+              ? 'Dhammaan talooyinka iyo fikradaha macaamiisha ee guud ahaan platform-ka (Talooyinka kaliya).'
+              : 'Global overview of citizen complaints and feedback collected across all registered institutions.'}
           </p>
         </div>
-
-        <button
-          onClick={handleExportCsv}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-[#2F2E2D] text-xs font-bold shadow-sm transition-all"
-        >
-          <Download className="w-4 h-4 text-emerald-600" />
-          Export All CSV
-        </button>
       </div>
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value);
-            setPage(1);
-          }}
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-semibold"
-        >
-          <option value="">All Types (Cabasho & Talo)</option>
-          <option value="CABASHO">Cabasho (Complaint)</option>
-          <option value="TALO">Talo (Feedback / Suggestion)</option>
-        </select>
+        {!isComplaintsRoute && !isFeedbackRoute && (
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-semibold"
+          >
+            <option value="">All Types (Cabasho & Talo)</option>
+            <option value="COMPLAINT">Cabasho (Complaint)</option>
+            <option value="FEEDBACK">Talo (Feedback / Idea)</option>
+          </select>
+        )}
 
         <select
           value={statusFilter}
@@ -247,21 +258,6 @@ export const SubmissionsPage = () => {
           <option value="RESOLVED">Resolved</option>
           <option value="REJECTED">Rejected</option>
         </select>
-
-        <select
-          value={priorityFilter}
-          onChange={(e) => {
-            setPriorityFilter(e.target.value);
-            setPage(1);
-          }}
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-semibold"
-        >
-          <option value="">All Priorities</option>
-          <option value="LOW">Low</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="HIGH">High</option>
-          <option value="URGENT">Urgent</option>
-        </select>
       </div>
 
       {/* Table */}
@@ -275,83 +271,79 @@ export const SubmissionsPage = () => {
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by citizen phone or feedback text..."
-        emptyTitle="No submissions found"
-        emptyDescription="Submissions submitted by customers via QR scans will be displayed here."
+        searchPlaceholder="Search content or phone..."
+        emptyTitle={
+          isComplaintsRoute
+            ? 'No complaints found'
+            : isFeedbackRoute
+            ? 'No feedback found'
+            : 'No submissions found'
+        }
+        emptyDescription="Submissions will appear here as citizens scan QR codes."
       />
 
-      {/* Submission Detail & Status Update Modal */}
+      {/* Review Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={
-          selectedSub?.type === 'CABASHO'
-            ? 'Review Complaint (Cabasho)'
-            : 'Review Citizen Feedback (Talo)'
+          selectedSub?.type === 'COMPLAINT' || selectedSub?.type === 'CABASHO'
+            ? 'Review Citizen Complaint'
+            : 'Review Citizen Feedback'
         }
       >
         {selectedSub && (
-          <div className="space-y-5">
-            {/* Meta Header */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
+          <div className="space-y-4">
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between">
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-extrabold ${
-                    selectedSub.type === 'CABASHO'
+                  className={`px-2.5 py-0.5 rounded-full font-bold ${
+                    selectedSub.type === 'COMPLAINT' || selectedSub.type === 'CABASHO'
                       ? 'bg-rose-100 text-rose-800'
                       : 'bg-blue-100 text-blue-800'
                   }`}
                 >
-                  {selectedSub.type === 'CABASHO' ? 'CABASHO' : 'TALO'}
+                  {selectedSub.type === 'COMPLAINT' || selectedSub.type === 'CABASHO' ? 'CABASHO' : 'TALO'}
                 </span>
-                <span className="text-[11px] text-slate-500 font-medium">
+                <span className="text-slate-400">
                   {new Date(selectedSub.createdAt).toLocaleString()}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <div>
-                  <p className="text-slate-400 font-medium">Target Organization</p>
+                  <span className="text-slate-400">Institution:</span>
                   <p className="font-bold text-[#2F2E2D]">
-                    {selectedSub.organizationId?.displayTitle || selectedSub.organizationId?.name}
+                    {selectedSub.organizationId?.displayTitle || selectedSub.organizationId?.name || '—'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-400 font-medium">Category</p>
-                  <p className="font-bold text-[#0086FF]">{selectedSub.category || 'General'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-400 font-medium">Citizen Phone</p>
-                  <p className="font-mono font-bold text-[#2F2E2D]">
-                    {selectedSub.customerPhone || 'Anonymous (Not provided)'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-400 font-medium">Current Status</p>
-                  <StatusBadge status={selectedSub.status} />
+                  <span className="text-slate-400">Category:</span>
+                  <p className="font-bold text-[#2F2E2D]">{selectedSub.category || 'General'}</p>
                 </div>
               </div>
             </div>
 
-            {/* Submission Content Text */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#2F2E2D]">Full Message Content:</label>
-              <div className="p-4 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-medium leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap">
-                {selectedSub.content}
+            <div>
+              <label className="text-xs font-bold text-[#2F2E2D] mb-1 block">
+                Message Content:
+              </label>
+              <div className="p-4 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-medium leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                {selectedSub.content || selectedSub.message}
               </div>
             </div>
 
-            {/* Update Status & Resolution Form */}
-            <form onSubmit={handleStatusUpdate} className="space-y-4 pt-3 border-t border-slate-100">
+            {/* Status Update Form */}
+            <form onSubmit={handleStatusUpdate} className="space-y-3 pt-2 border-t border-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                    Update Workflow Status
+                    Status
                   </label>
                   <select
                     value={updateStatus}
                     onChange={(e) => setUpdateStatus(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
                   >
                     <option value="NEW">NEW</option>
                     <option value="IN_REVIEW">IN_REVIEW</option>
@@ -362,11 +354,11 @@ export const SubmissionsPage = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                    Internal Resolution Notes
+                    Notes
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Forwarded to management / Resolved with customer"
+                    placeholder="Resolution notes"
                     value={updateNotes}
                     onChange={(e) => setUpdateNotes(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
@@ -374,18 +366,18 @@ export const SubmissionsPage = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
-                  className="px-5 py-2 rounded-xl bg-[#2C3925] text-white text-xs font-bold hover:bg-[#212B1C] transition-colors flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-[#2C3925] text-white text-xs font-bold hover:bg-[#212B1C] flex items-center gap-1.5"
                 >
                   <CheckCircle className="w-4 h-4" />
                   Save Status

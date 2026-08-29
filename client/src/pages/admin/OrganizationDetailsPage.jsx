@@ -25,6 +25,8 @@ import {
   FileText,
   Trash2,
   AlertTriangle,
+  KeyRound,
+  User,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,12 +41,13 @@ export const OrganizationDetailsPage = () => {
 
   // Modals state
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
-  // Edit form state
+  // Organization Edit Form State
   const [editForm, setEditForm] = useState({
     name: '',
     displayTitle: '',
@@ -54,7 +57,19 @@ export const OrganizationDetailsPage = () => {
     whatsapp: '',
     address: '',
     branch: '',
+    description: '',
+    status: 'ACTIVE',
   });
+
+  // User Edit Form State
+  const [userEditForm, setUserEditForm] = useState({
+    fullName: '',
+    username: '',
+    phone: '',
+    status: 'ACTIVE',
+  });
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [newTempPassResult, setNewTempPassResult] = useState(null);
 
   // Manual payment form state
   const [paymentForm, setPaymentForm] = useState({
@@ -70,18 +85,32 @@ export const OrganizationDetailsPage = () => {
       setLoading(true);
       const res = await api.get(`/admin/organizations/${id}`);
       if (res.data.success) {
-        setOrg(res.data.data.organization);
-        setUser(res.data.data.user);
+        const organizationData = res.data.data.organization;
+        const userData = res.data.data.user;
+        setOrg(organizationData);
+        setUser(userData);
+
         setEditForm({
-          name: res.data.data.organization.name || '',
-          displayTitle: res.data.data.organization.displayTitle || '',
-          organizationType: res.data.data.organization.organizationType || '',
-          phone: res.data.data.organization.phone || '',
-          email: res.data.data.organization.email || '',
-          whatsapp: res.data.data.organization.whatsapp || '',
-          address: res.data.data.organization.address || '',
-          branch: res.data.data.organization.branch || '',
+          name: organizationData.name || '',
+          displayTitle: organizationData.displayTitle || '',
+          organizationType: organizationData.organizationType || 'Company',
+          phone: organizationData.phone || '',
+          email: organizationData.email || '',
+          whatsapp: organizationData.whatsapp || '',
+          address: organizationData.address || '',
+          branch: organizationData.branch || '',
+          description: organizationData.description || '',
+          status: organizationData.status || 'ACTIVE',
         });
+
+        if (userData) {
+          setUserEditForm({
+            fullName: userData.fullName || '',
+            username: userData.username || '',
+            phone: userData.phone || '',
+            status: userData.status || 'ACTIVE',
+          });
+        }
       }
 
       // Fetch QR details
@@ -109,12 +138,44 @@ export const OrganizationDetailsPage = () => {
     try {
       const res = await api.patch(`/admin/organizations/${id}`, editForm);
       if (res.data.success) {
-        toast.success('Organization updated successfully');
+        toast.success('Organization details updated successfully!');
         setIsEditOpen(false);
         fetchOrganizationDetails();
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update organization');
+    }
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!user?._id) return;
+    try {
+      const res = await api.patch(`/admin/organization-users/${user._id}`, userEditForm);
+      if (res.data.success) {
+        toast.success('Organization Representative User updated successfully!');
+        setIsEditUserOpen(false);
+        fetchOrganizationDetails();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update user');
+    }
+  };
+
+  const handleResetUserPassword = async () => {
+    if (!user?._id) return;
+    if (!window.confirm(`Reset password for representative user "${user.username}"?`)) return;
+    try {
+      setResettingPassword(true);
+      const res = await api.post(`/admin/organization-users/${user._id}/reset-password`);
+      if (res.data.success) {
+        setNewTempPassResult(res.data.data.temporaryPassword);
+        toast.success('Temporary password generated successfully!');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset user password');
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -198,227 +259,219 @@ export const OrganizationDetailsPage = () => {
     );
   }
 
-  const daysLeft = org.daysRemaining || 0;
-  const isExpiring = daysLeft <= 3 && daysLeft > 0;
-  const isExpired = daysLeft <= 0;
-
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Top Breadcrumb & Action bar */}
+      {/* Top Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div>
           <Link
             to="/admin/organizations"
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5856] hover:text-[#2C3925] transition-colors mb-2"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" /> Back to All Institutions
           </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D]">
-                {org.displayTitle || org.name}
-              </h1>
-              <StatusBadge status={org.subscriptionStatus || org.status} />
-            </div>
-            <p className="text-xs text-[#5A5856]">
-              {org.organizationType} • Branch: {org.branch || 'Main Center'}
-            </p>
-          </div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D] flex items-center gap-3">
+            {org.name}
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-extrabold ${
+                org.status === 'ACTIVE'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-rose-100 text-rose-800'
+              }`}
+            >
+              {org.status}
+            </span>
+          </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsEditOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-[#2F2E2D] text-xs font-bold shadow-sm transition-all"
+            className="px-4 py-2.5 rounded-xl bg-[#0086FF] hover:bg-[#006ED6] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
           >
-            <Edit className="w-3.5 h-3.5 text-slate-500" />
-            Edit Info
+            <Edit className="w-4 h-4" /> Edit All Org Profile Fields
           </button>
+
           <button
             onClick={() => setIsPayModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0086FF] hover:bg-[#006ED6] text-white text-xs font-bold shadow-sm transition-all"
+            className="px-4 py-2.5 rounded-xl bg-[#2C3925] hover:bg-[#212B1C] text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
           >
-            <CreditCard className="w-3.5 h-3.5" />
-            Record Payment / Extend
+            <CreditCard className="w-4 h-4 text-[#0086FF]" /> Record Payment / Extend
           </button>
+
           <button
             onClick={() => setIsDeleteOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold shadow-sm transition-all"
+            className="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1.5 border border-rose-200"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
+            <Trash2 className="w-4 h-4" /> Delete Org
           </button>
         </div>
       </div>
 
-      {/* Subscription Service Life Banner */}
-      <div
-        className={`rounded-2xl p-5 border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isExpired
-            ? 'bg-rose-50 border-rose-200 text-rose-900'
-            : isExpiring
-            ? 'bg-amber-50 border-amber-200 text-amber-900'
-            : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-        }`}
-      >
-        <div className="flex items-center gap-3.5">
-          <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-              isExpired
-                ? 'bg-rose-600 text-white'
-                : isExpiring
-                ? 'bg-amber-500 text-white'
-                : 'bg-emerald-600 text-white'
-            }`}
-          >
-            <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-extrabold">
-              {isExpired
-                ? '30-Day Service Period Expired'
-                : isExpiring
-                ? `Subscription Expiring Soon: ${daysLeft} Day${daysLeft > 1 ? 's' : ''} Remaining`
-                : `Active Service Period: ${daysLeft} Days Remaining`}
-            </h3>
-            <p className="text-xs opacity-80">
-              {org.serviceEndDate
-                ? `Expires on ${new Date(org.serviceEndDate).toLocaleDateString()} at ${new Date(
-                    org.serviceEndDate
-                  ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                : 'Service timeframe calculating'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsPayModalOpen(true)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-              isExpired
-                ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                : 'bg-white border border-slate-200 text-[#2F2E2D] hover:bg-slate-50'
-            }`}
-          >
-            Renew 30-Day Cycle
-          </button>
-        </div>
-      </div>
-
-      {/* Grid: Left Org Info & User, Right Branded QR Poster */}
+      {/* Main 2-Col Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Details & User */}
+        {/* Left 2 Cols: Details & User Account */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Institutional Details Card */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 space-y-5">
+          {/* Organization Info Card */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 space-y-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-extrabold text-[#2F2E2D] flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-[#2C3925]" />
-                Institutional Profile
-              </h3>
-              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                ID: {org._id}
-              </span>
+              <div className="flex items-center gap-3">
+                {org.logo ? (
+                  <img
+                    src={org.logo}
+                    alt={org.name}
+                    className="w-12 h-12 object-contain rounded-xl border border-slate-200 bg-slate-50 p-1"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-[#2C3925] text-white flex items-center justify-center font-extrabold text-lg">
+                    {org.name?.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-extrabold text-base text-[#2F2E2D]">
+                    {org.displayTitle || org.name}
+                  </h3>
+                  <p className="text-xs text-[#5A5856]">
+                    Category: <span className="font-bold text-[#0086FF]">{org.organizationType}</span> • Branch: {org.branch}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="text-xs font-bold text-[#0086FF] hover:underline flex items-center gap-1"
+              >
+                <Edit className="w-3.5 h-3.5" /> Edit Profile
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="space-y-1">
-                <p className="text-slate-400 font-medium">Official Legal Name</p>
-                <p className="font-bold text-[#2F2E2D]">{org.name}</p>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-slate-400 font-medium">Public Display Title</p>
-                <p className="font-bold text-[#2F2E2D]">{org.displayTitle || org.name}</p>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-slate-400 font-medium">Primary Phone</p>
-                <p className="font-semibold text-[#2F2E2D] flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  {org.phone || '—'}
+              <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="text-slate-400 font-medium flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-[#0086FF]" /> Registered Official Email
+                </p>
+                <p className="font-extrabold text-[#2F2E2D] truncate">
+                  {org.email || 'Not specified'}
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-slate-400 font-medium">WhatsApp Dispatch</p>
-                <p className="font-semibold text-[#2F2E2D] flex items-center gap-1.5">
-                  <Share2 className="w-3.5 h-3.5 text-emerald-600" />
-                  {org.whatsapp || '—'}
+              <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="text-slate-400 font-medium flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-[#0086FF]" /> Primary Phone Number
+                </p>
+                <p className="font-extrabold text-[#2F2E2D]">
+                  {org.phone || 'Not specified'}
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-slate-400 font-medium">Email Address</p>
-                <p className="font-semibold text-[#2F2E2D] flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  {org.email || '—'}
+              <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="text-slate-400 font-medium flex items-center gap-1.5">
+                  <Share2 className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Support Number
+                </p>
+                <p className="font-extrabold text-[#2F2E2D]">
+                  {org.whatsapp || org.phone || 'Not specified'}
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-slate-400 font-medium">Sector / Category</p>
-                <p className="font-bold text-[#0086FF]">{org.organizationType}</p>
-              </div>
-
-              <div className="sm:col-span-2 space-y-1">
-                <p className="text-slate-400 font-medium">Physical Location & Address</p>
-                <p className="font-semibold text-[#2F2E2D] flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {org.address || '—'}
+              <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="text-slate-400 font-medium flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-slate-500" /> Physical Address
+                </p>
+                <p className="font-semibold text-[#2F2E2D]">
+                  {org.address || 'Mogadishu, Somalia'}
                 </p>
               </div>
             </div>
 
-            {/* Custom Complaint Categories */}
-            {org.complaintCategories && org.complaintCategories.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <p className="text-[11px] font-bold text-[#5A5856]">
-                  Active Feedback & Complaint Categories:
+            {/* Service & Subscription Status Bar */}
+            <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="space-y-1 text-center sm:text-left">
+                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+                  Active Service Period & Subscription Status
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {org.complaintCategories.map((cat, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-medium"
-                    >
-                      {cat}
-                    </span>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                    org.isServiceActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                  }`}>
+                    {org.subscriptionStatus || (org.isServiceActive ? 'ACTIVE' : 'EXPIRED')}
+                  </span>
+                  <span className="text-xs font-mono font-bold text-emerald-400">
+                    {org.daysRemaining ?? 30} Days Service Remaining
+                  </span>
                 </div>
               </div>
-            )}
+
+              <button
+                onClick={() => setIsPayModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-[#0086FF] hover:bg-[#006ED6] text-white text-xs font-bold shadow-sm transition-all"
+              >
+                + Add Days / Record Payment
+              </button>
+            </div>
           </div>
 
-          {/* Assigned Organization User Account */}
+          {/* Linked Manager Account Card */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-extrabold text-[#2F2E2D] flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-[#0086FF]" />
-                Assigned Organization Account
+                <User className="w-4 h-4 text-[#2C3925]" />
+                Representative Portal User Account
               </h3>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
-                Active Tenant Login
-              </span>
+              {user && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsEditUserOpen(true)}
+                    className="text-xs font-bold text-[#0086FF] hover:underline flex items-center gap-1"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Edit Representative User
+                  </button>
+                </div>
+              )}
             </div>
 
             {user ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                <div className="space-y-1">
-                  <p className="text-slate-400 font-medium">Full Name</p>
-                  <p className="font-bold text-[#2F2E2D]">{user.fullName}</p>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+                  <div className="space-y-1">
+                    <p className="text-slate-400 font-medium">Full Name</p>
+                    <p className="font-bold text-[#2F2E2D]">{user.fullName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-slate-400 font-medium">Username (Login ID)</p>
+                    <p className="font-mono font-bold text-[#0086FF]">@{user.username}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-slate-400 font-medium">Contact Phone</p>
+                    <p className="font-medium text-[#2F2E2D]">{user.phone || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-slate-400 font-medium">Account Status</p>
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                      {user.status || 'ACTIVE'}
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-slate-400 font-medium">Username (Login ID)</p>
-                  <p className="font-mono font-bold text-[#0086FF]">{user.username}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-slate-400 font-medium">Contact Phone</p>
-                  <p className="font-medium text-[#2F2E2D]">{user.phone || '—'}</p>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleResetUserPassword}
+                    disabled={resettingPassword}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition-all flex items-center gap-1.5"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    {resettingPassword ? 'Resetting...' : 'Reset User Password'}
+                  </button>
+
+                  {newTempPassResult && (
+                    <div className="text-xs bg-emerald-50 text-emerald-900 px-3 py-1.5 rounded-xl border border-emerald-200 font-bold">
+                      New Temporary Password: <span className="font-mono text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-300">{newTempPassResult}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-400">No user assigned yet.</p>
+              <p className="text-xs text-slate-400">No representative user assigned yet.</p>
             )}
           </div>
         </div>
@@ -538,16 +591,16 @@ export const OrganizationDetailsPage = () => {
         </div>
       </div>
 
-      {/* Edit Organization Modal */}
+      {/* EDIT ORGANIZATION PROFILE MODAL */}
       <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
-        title="Edit Organization Profile"
+        title="Edit Full Organization Profile & Settings"
       >
         <form onSubmit={handleUpdateOrg} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-              Official Legal Name
+              Official Legal Name *
             </label>
             <input
               type="text"
@@ -568,6 +621,21 @@ export const OrganizationDetailsPage = () => {
               onChange={(e) => setEditForm({ ...editForm, displayTitle: e.target.value })}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+              Official Registered Email Address *
+            </label>
+            <input
+              type="email"
+              required
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              placeholder="info@institution.com"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">Used for OTP password reset and official security alerts.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -591,14 +659,19 @@ export const OrganizationDetailsPage = () => {
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Branch / Unit
+                Organization Status
               </label>
-              <input
-                type="text"
-                value={editForm.branch}
-                onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
-              />
+              <select
+                value={editForm.status}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, status: e.target.value })
+                }
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="INACTIVE">INACTIVE</option>
+                <option value="SUSPENDED">SUSPENDED</option>
+              </select>
             </div>
           </div>
 
@@ -610,7 +683,7 @@ export const OrganizationDetailsPage = () => {
               <input
                 type="text"
                 value={editForm.phone}
-                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value.replace(/[^0-9+\s-]/g, '') })}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
@@ -622,10 +695,22 @@ export const OrganizationDetailsPage = () => {
               <input
                 type="text"
                 value={editForm.whatsapp}
-                onChange={(e) => setEditForm({ ...editForm, whatsapp: e.target.value })}
+                onChange={(e) => setEditForm({ ...editForm, whatsapp: e.target.value.replace(/[^0-9+\s-]/g, '') })}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+              Branch / Unit Name
+            </label>
+            <input
+              type="text"
+              value={editForm.branch}
+              onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+            />
           </div>
 
           <div>
@@ -650,9 +735,89 @@ export const OrganizationDetailsPage = () => {
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#2C3925] text-white text-xs font-bold hover:bg-[#212B1C] transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-[#0086FF] text-white text-xs font-bold hover:bg-[#006ED6] transition-colors flex items-center gap-1.5"
             >
-              Save Changes
+              <CheckCircle className="w-4 h-4" /> Save Organization Profile
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* EDIT LINKED USER MODAL */}
+      <Modal
+        isOpen={isEditUserOpen}
+        onClose={() => setIsEditUserOpen(false)}
+        title="Edit Representative User Account"
+      >
+        <form onSubmit={handleUpdateUser} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+              Representative Full Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={userEditForm.fullName}
+              onChange={(e) => setUserEditForm({ ...userEditForm, fullName: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Username (Login ID) *
+              </label>
+              <input
+                type="text"
+                required
+                value={userEditForm.username}
+                onChange={(e) => setUserEditForm({ ...userEditForm, username: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={userEditForm.phone}
+                onChange={(e) => setUserEditForm({ ...userEditForm, phone: e.target.value.replace(/[^0-9+\s-]/g, '') })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+              User Status
+            </label>
+            <select
+              value={userEditForm.status}
+              onChange={(e) => setUserEditForm({ ...userEditForm, status: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+            >
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+              <option value="SUSPENDED">SUSPENDED</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditUserOpen(false)}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl bg-[#0086FF] text-white text-xs font-bold hover:bg-[#006ED6] transition-colors flex items-center gap-1.5"
+            >
+              <CheckCircle className="w-4 h-4" /> Save User Details
             </button>
           </div>
         </form>

@@ -14,7 +14,10 @@ const router = Router();
 // Protect and isolate all organization user routes
 router.use(authenticate, authorize(ROLES.ORGANIZATION_USER), enforceOrgIsolation);
 
+import { updateOrganizationSchema } from '../validators/organization.validator.js';
+
 router.get('/overview', orgController.getOverview);
+router.patch('/profile', validate(updateOrganizationSchema), orgController.updateProfile);
 router.get('/submissions', orgController.getSubmissions);
 router.get('/submissions/:id', orgController.getSubmissionById);
 router.patch('/submissions/:id/status', validate(updateSubmissionStatusSchema), orgController.updateSubmissionStatus);

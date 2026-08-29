@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../utils/api';
 import { DataTable } from '../../components/DataTable';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -9,11 +10,11 @@ import {
   Eye,
   Download,
   CheckCircle,
-  Phone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const OrgSubmissionsPage = () => {
+  const location = useLocation();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -28,6 +29,17 @@ export const OrgSubmissionsPage = () => {
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateNotes, setUpdateNotes] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Auto detect type filter based on URL route (/complaints vs /feedback)
+  useEffect(() => {
+    if (location.pathname.includes('/complaints')) {
+      setTypeFilter('COMPLAINT');
+    } else if (location.pathname.includes('/feedback')) {
+      setTypeFilter('FEEDBACK');
+    } else {
+      setTypeFilter('');
+    }
+  }, [location.pathname]);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -97,6 +109,9 @@ export const OrgSubmissionsPage = () => {
     toast.success('Downloading your submissions CSV...');
   };
 
+  const isComplaintsRoute = location.pathname.includes('/complaints');
+  const isFeedbackRoute = location.pathname.includes('/feedback');
+
   const columns = [
     {
       header: 'Type',
@@ -104,17 +119,17 @@ export const OrgSubmissionsPage = () => {
       render: (sub) => (
         <span
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold ${
-            sub.type === 'CABASHO'
-              ? 'bg-rose-100 text-rose-800'
-              : 'bg-blue-100 text-blue-800'
+            sub.type === 'COMPLAINT' || sub.type === 'CABASHO'
+              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+              : 'bg-blue-100 text-blue-800 border border-blue-200'
           }`}
         >
-          {sub.type === 'CABASHO' ? (
-            <AlertCircle className="w-3.5 h-3.5" />
+          {sub.type === 'COMPLAINT' || sub.type === 'CABASHO' ? (
+            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
           ) : (
-            <MessageSquareShare className="w-3.5 h-3.5" />
+            <MessageSquareShare className="w-3.5 h-3.5 text-blue-600" />
           )}
-          {sub.type === 'CABASHO' ? 'Cabasho' : 'Talo'}
+          {sub.type === 'COMPLAINT' || sub.type === 'CABASHO' ? 'CABASHO' : 'TALO'}
         </span>
       ),
     },
@@ -126,7 +141,7 @@ export const OrgSubmissionsPage = () => {
             {sub.category || 'General'}
           </span>
           <p className="text-xs text-[#2F2E2D] font-medium mt-1 line-clamp-2">
-            {sub.content}
+            {sub.content || sub.message}
           </p>
         </div>
       ),
@@ -168,14 +183,30 @@ export const OrgSubmissionsPage = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Header */}
+      {/* Dynamic Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D]">
-            Citizen Complaints & Suggestions
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D] flex items-center gap-2.5">
+            {isComplaintsRoute ? (
+              <>
+                <AlertCircle className="w-6 h-6 text-rose-600" />
+                Cabashooyinka Macaamiisha (Complaints Only)
+              </>
+            ) : isFeedbackRoute ? (
+              <>
+                <MessageSquareShare className="w-6 h-6 text-[#0086FF]" />
+                Talooyinka Macaamiisha (Feedback & Ideas Only)
+              </>
+            ) : (
+              'Citizen Complaints & Suggestions'
+            )}
           </h1>
           <p className="text-xs text-[#5A5856]">
-            Review, investigate, and mark progress on citizen feedback collected from your QR codes.
+            {isComplaintsRoute
+              ? 'Dhammaan cabashooyinka rasmiga ah ee macaamiishu ku soo gudbiyeen QR Code-ka (Cabashooyinka kaliya).'
+              : isFeedbackRoute
+              ? 'Dhammaan talooyinka iyo fikradaha dhismaha leh ee macaamiishu ku soo gudbiyeen QR Code-ka (Talooyinka kaliya).'
+              : 'Review, investigate, and mark progress on citizen feedback collected from your QR codes.'}
           </p>
         </div>
 
@@ -184,24 +215,26 @@ export const OrgSubmissionsPage = () => {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-[#2F2E2D] text-xs font-bold shadow-sm transition-all"
         >
           <Download className="w-4 h-4 text-emerald-600" />
-          Export Submissions CSV
+          Export CSV
         </button>
       </div>
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value);
-            setPage(1);
-          }}
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-semibold"
-        >
-          <option value="">All Types (Cabasho & Talo)</option>
-          <option value="CABASHO">Cabasho (Complaint)</option>
-          <option value="TALO">Talo (Feedback / Idea)</option>
-        </select>
+        {!isComplaintsRoute && !isFeedbackRoute && (
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-semibold"
+          >
+            <option value="">All Types (Cabasho & Talo)</option>
+            <option value="COMPLAINT">Cabasho (Complaint)</option>
+            <option value="FEEDBACK">Talo (Feedback / Idea)</option>
+          </select>
+        )}
 
         <select
           value={statusFilter}
@@ -230,8 +263,20 @@ export const OrgSubmissionsPage = () => {
         onPageChange={setPage}
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search message text or phone..."
-        emptyTitle="No submissions found"
+        searchPlaceholder={
+          isComplaintsRoute
+            ? 'Search complaints text or phone...'
+            : isFeedbackRoute
+            ? 'Search feedback text or phone...'
+            : 'Search message text or phone...'
+        }
+        emptyTitle={
+          isComplaintsRoute
+            ? 'Wax cabasho ah wali ma soo dhacin (No complaints found)'
+            : isFeedbackRoute
+            ? 'Wax talo ah wali ma soo dhacin (No feedback found)'
+            : 'No submissions found'
+        }
         emptyDescription="Submissions scanned and sent by citizens will appear here."
       />
 
@@ -240,7 +285,7 @@ export const OrgSubmissionsPage = () => {
         isOpen={!!selectedSub}
         onClose={() => setSelectedSub(null)}
         title={
-          selectedSub?.type === 'CABASHO'
+          selectedSub?.type === 'COMPLAINT' || selectedSub?.type === 'CABASHO'
             ? 'Process Citizen Complaint (Cabasho)'
             : 'Process Citizen Feedback (Talo)'
         }
@@ -251,12 +296,12 @@ export const OrgSubmissionsPage = () => {
               <div className="flex justify-between">
                 <span
                   className={`px-2.5 py-0.5 rounded-full font-bold ${
-                    selectedSub.type === 'CABASHO'
+                    selectedSub.type === 'COMPLAINT' || selectedSub.type === 'CABASHO'
                       ? 'bg-rose-100 text-rose-800'
                       : 'bg-blue-100 text-blue-800'
                   }`}
                 >
-                  {selectedSub.type === 'CABASHO' ? 'CABASHO' : 'TALO'}
+                  {selectedSub.type === 'COMPLAINT' || selectedSub.type === 'CABASHO' ? 'CABASHO' : 'TALO'}
                 </span>
                 <span className="text-slate-400">
                   {new Date(selectedSub.createdAt).toLocaleString()}
@@ -279,10 +324,10 @@ export const OrgSubmissionsPage = () => {
 
             <div>
               <label className="text-xs font-bold text-[#2F2E2D] mb-1 block">
-                Citizen Feedback Content:
+                Citizen Message Content:
               </label>
               <div className="p-4 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-medium leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
-                {selectedSub.content}
+                {selectedSub.content || selectedSub.message}
               </div>
             </div>
 

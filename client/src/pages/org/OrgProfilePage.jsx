@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { StatusBadge } from '../../components/StatusBadge';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { Modal } from '../../components/Modal';
 import {
   Building2,
   User,
@@ -13,9 +13,8 @@ import {
   MapPin,
   MessageCircle,
   QrCode,
-  Calendar,
   Layers,
-  ShieldCheck,
+  Edit,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -25,6 +24,18 @@ export const OrgProfilePage = () => {
   const [org, setOrg] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Edit Organization Profile State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [submittingOrg, setSubmittingOrg] = useState(false);
+  const [orgEditForm, setOrgEditForm] = useState({
+    displayTitle: '',
+    email: '',
+    phone: '',
+    whatsapp: '',
+    branch: '',
+    address: '',
+  });
+
   // Password change state
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -33,22 +44,49 @@ export const OrgProfilePage = () => {
   });
   const [submittingPass, setSubmittingPass] = useState(false);
 
-  useEffect(() => {
-    const fetchOrg = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get('/organization/overview');
-        if (res.data.success) {
-          setOrg(res.data.data.organization);
-        }
-      } catch (err) {
-        toast.error('Failed to load profile');
-      } finally {
-        setLoading(false);
+  const fetchOrg = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/organization/overview');
+      if (res.data.success) {
+        const organizationData = res.data.data.organization;
+        setOrg(organizationData);
+        setOrgEditForm({
+          displayTitle: organizationData.displayTitle || '',
+          email: organizationData.email || '',
+          phone: organizationData.phone || '',
+          whatsapp: organizationData.whatsapp || '',
+          branch: organizationData.branch || '',
+          address: organizationData.address || '',
+        });
       }
-    };
+    } catch (err) {
+      toast.error('Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrg();
   }, []);
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    setSubmittingOrg(true);
+    try {
+      const res = await api.patch('/organization/profile', orgEditForm);
+      if (res.data.success) {
+        toast.success('Organization profile & email updated successfully!');
+        setIsEditModalOpen(false);
+        fetchOrg();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update organization profile');
+    } finally {
+      setSubmittingOrg(false);
+    }
+  };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -84,13 +122,23 @@ export const OrgProfilePage = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-150 max-w-5xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D]">
-          Institution Profile & Account Security
-        </h1>
-        <p className="text-xs text-[#5A5856]">
-          Review your official registered profile, brand logo, and manage your portal credentials.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#2F2E2D]">
+            Institution Profile & Account Security
+          </h1>
+          <p className="text-xs text-[#5A5856]">
+            Review & edit your registered profile, official email, contact details, and manage access password.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setIsEditModalOpen(true)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0086FF] hover:bg-[#006ED6] text-white text-xs font-bold shadow-md transition-all self-start sm:self-auto"
+        >
+          <Edit className="w-4 h-4" />
+          Edit Profile & Email
+        </button>
       </div>
 
       {/* Organization Official Brand & Profile Card */}
@@ -150,12 +198,19 @@ export const OrgProfilePage = () => {
 
             {/* Quick Action */}
             <div className="flex sm:flex-col gap-2">
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-all border border-white/30 shadow-sm"
+              >
+                <Edit className="w-4 h-4 text-emerald-300" />
+                Edit Profile
+              </button>
               <Link
                 to="/organization/qr"
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all border border-white/20 backdrop-blur-sm shadow-sm"
               >
                 <QrCode className="w-4 h-4 text-[#0086FF]" />
-                View Official QR
+                View QR
               </Link>
             </div>
           </div>
@@ -174,9 +229,17 @@ export const OrgProfilePage = () => {
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-            <div className="flex items-center gap-2 text-[#5A5856] text-xs font-bold">
-              <Mail className="w-4 h-4 text-[#0086FF]" />
-              Official Email
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#5A5856] text-xs font-bold">
+                <Mail className="w-4 h-4 text-[#0086FF]" />
+                Official Email
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="text-[10px] font-bold text-[#0086FF] hover:underline"
+              >
+                Edit
+              </button>
             </div>
             <p className="text-sm font-extrabold text-[#2F2E2D] truncate">
               {org?.email || 'Not specified'}
@@ -326,6 +389,126 @@ export const OrgProfilePage = () => {
           </form>
         </div>
       </div>
+
+      {/* EDIT ORGANIZATION PROFILE & EMAIL MODAL */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Organization Profile & Email"
+      >
+        <form onSubmit={handleUpdateProfile} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+              Official Registered Email *
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="email"
+                required
+                value={orgEditForm.email}
+                onChange={(e) => setOrgEditForm({ ...orgEditForm, email: e.target.value })}
+                placeholder="info@institution.com"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">
+              Used for OTP password reset and official platform notifications.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+              Display Title (Customer Banner Header)
+            </label>
+            <input
+              type="text"
+              value={orgEditForm.displayTitle}
+              onChange={(e) => setOrgEditForm({ ...orgEditForm, displayTitle: e.target.value })}
+              placeholder="e.g. Isbitaalka Guud ee ABC"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Official Phone Number
+              </label>
+              <input
+                type="tel"
+                value={orgEditForm.phone}
+                onChange={(e) =>
+                  setOrgEditForm({ ...orgEditForm, phone: e.target.value.replace(/[^0-9+\s-]/g, '') })
+                }
+                placeholder="+252 61 000 0000"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Official WhatsApp Number
+              </label>
+              <input
+                type="tel"
+                value={orgEditForm.whatsapp}
+                onChange={(e) =>
+                  setOrgEditForm({ ...orgEditForm, whatsapp: e.target.value.replace(/[^0-9+\s-]/g, '') })
+                }
+                placeholder="+252 61 000 0000"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Branch / Location
+              </label>
+              <input
+                type="text"
+                value={orgEditForm.branch}
+                onChange={(e) => setOrgEditForm({ ...orgEditForm, branch: e.target.value })}
+                placeholder="Main Branch"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Physical Address
+              </label>
+              <input
+                type="text"
+                value={orgEditForm.address}
+                onChange={(e) => setOrgEditForm({ ...orgEditForm, address: e.target.value })}
+                placeholder="Mogadishu, Somalia"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 flex justify-end gap-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(false)}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submittingOrg}
+              className="px-4 py-2 rounded-xl bg-[#0086FF] hover:bg-[#006ED6] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+            >
+              <CheckCircle className="w-4 h-4" />
+              {submittingOrg ? 'Saving Changes...' : 'Save & Update Email'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

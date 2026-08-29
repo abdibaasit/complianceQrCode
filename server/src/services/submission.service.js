@@ -14,21 +14,22 @@ import { PlatformSettings } from '../models/PlatformSettings.js';
  * Validate QR token and load safe public organization profile for customer view.
  */
 export const getPublicOrgByQrToken = async (publicToken) => {
-  const qr = await QRCode.findOne({ publicToken });
+  const qr = await QRCode.findOne({ publicToken }).lean();
   if (!qr || qr.status !== QR_STATUS.ACTIVE) {
     throw new ApiError(404, 'QR code is invalid or has been deactivated.');
   }
 
-  const organization = await Organization.findById(qr.organizationId)
-    .populate('activeSubscriptionId');
+  const [organization, settings] = await Promise.all([
+    Organization.findById(qr.organizationId).populate('activeSubscriptionId').lean(),
+    PlatformSettings.findOne().lean(),
+  ]);
 
   if (!organization) {
     throw new ApiError(404, 'Organization associated with this QR code does not exist.');
   }
 
   // Check Subscription Status
-  const settings = (await PlatformSettings.findOne()) || {};
-  const subCalc = calculateSubscriptionStatus(organization.activeSubscriptionId, settings);
+  const subCalc = calculateSubscriptionStatus(organization.activeSubscriptionId, settings || {});
 
   if (!subCalc.isServiceActive) {
     return {
