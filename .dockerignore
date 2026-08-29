@@ -14,3 +14,9 @@ build
 .idea
 coverage
 .nyc_output
+README.md
+.gitattributes
+LICENSE
+uploads
+client/
+server/node_modules/

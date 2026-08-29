@@ -90,9 +90,17 @@ const startServer = async () => {
   });
 };
 
-// Only start local server when NOT in test mode and NOT on Vercel
-if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-  startServer();
+// Start server on Railway/Docker and local development (NOT on Vercel serverless)
+// On Vercel, the app is exported below for serverless function
+if (process.env.NODE_ENV !== 'test') {
+  if (!process.env.VERCEL) {
+    // Railway, Docker, and local development
+    startServer().catch(err => {
+      console.error('[Server] Failed to start:', err.message);
+      process.exit(1);
+    });
+  }
+}
 }
 
 export default app;
