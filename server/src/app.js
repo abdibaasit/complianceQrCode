@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import { ENV } from './config/env.js';
@@ -77,6 +78,19 @@ app.use('/api/public', publicRoutes);
 
 // Centralized Error Handling
 app.use(errorHandler);
+
+// Serve frontend static files in Docker/Koyeb/Railway production
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  // SPA fallback: serve index.html for any non-API route
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      res.sendFile(path.join(clientDistPath, 'index.html'));
+    }
+  });
+  console.log('[Server] Serving frontend from client/dist');
+}
 
 // Server startup (only when running locally, not on Vercel serverless)
 const startServer = async () => {
