@@ -111,9 +111,25 @@ export const getRenewalHistory = asyncHandler(async (req, res) => {
   });
 });
 
+import * as chatbotService from '../services/chatbot.service.js';
+
 export const exportCsv = asyncHandler(async (req, res) => {
   const csv = await reportService.generateSubmissionsCsv(req.organizationId);
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="my_organization_submissions.csv"');
   res.status(200).send(csv);
+});
+
+export const handleOrgChatbot = asyncHandler(async (req, res) => {
+  const result = await chatbotService.handleChatbotMessage({
+    message: req.body.message,
+    history: req.body.history || [],
+    mode: 'ORGANIZATION',
+    orgId: req.organizationId,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
 });

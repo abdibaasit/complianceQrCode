@@ -6,6 +6,8 @@ import { generateTemporaryPassword } from '../utils/tokenGenerator.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logAudit } from '../services/audit.service.js';
 
+import { AdminUser } from '../models/AdminUser.js';
+
 export const createOrganizationUser = asyncHandler(async (req, res) => {
   const result = await orgService.createOrganizationUser(req.params.id, req.body, req.user);
   res.status(201).json({
@@ -16,15 +18,42 @@ export const createOrganizationUser = asyncHandler(async (req, res) => {
 });
 
 export const updateOrganizationUser = asyncHandler(async (req, res) => {
-  const user = await OrganizationUser.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-passwordHash');
+  const { id } = req.params;
+
+  // Validation: Unique phone number
+  if (req.body.phone) {
+    const cleanPhone = req.body.phone.trim();
+    if (cleanPhone) {
+      const conflict = await OrganizationUser.findOne({ phone: cleanPhone, _id: { $ne: id } });
+      if (conflict) {
+        throw new ApiError(409, `Phone number "${cleanPhone}" is already registered to another user (${conflict.fullName}).`);
+      }
+      req.body.phone = cleanPhone;
+    }
+  }
+
+  // Validation: Unique username
+  if (req.body.username) {
+    const cleanUsername = req.body.username.trim().toLowerCase();
+    if (cleanUsername) {
+      const conflict = await OrganizationUser.findOne({ username: cleanUsername, _id: { $ne: id } });
+      const adminConflict = await AdminUser.findOne({ username: cleanUsername });
+      if (conflict || adminConflict) {
+        throw new ApiError(409, `Username "${cleanUsername}" is already taken.`);
+      }
+      req.body.username = cleanUsername;
+    }
+  }
+
+  const user = await OrganizationUser.findByIdAndUpdate(id, req.body, { new: true }).select('-passwordHash');
   if (!user) {
     throw new ApiError(404, 'Organization user not found');
   }
 
   await logAudit({
-    actorId: req.user._id,
-    actorName: req.user.fullName,
-    actorRole: req.user.role,
+    actorId: req.user?._id || req.user?.id,
+    actorName: req.user?.fullName,
+    actorRole: req.user?.role,
     action: 'ORGANIZATION_USER_UPDATED',
     resourceType: 'OrganizationUser',
     resourceId: user._id,

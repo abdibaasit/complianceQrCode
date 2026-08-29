@@ -27,3 +27,13 @@ export const updateUsernameSchema = z.object({
       .trim(),
   }),
 });
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    identifier: z.string().optional(),
+    username: z.string().optional(),
+    email: z.string().optional(),
+    otpCode: z.string().optional(),
+    newPassword: z.string().min(6).optional(),
+  }),
+});

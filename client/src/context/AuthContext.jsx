@@ -14,7 +14,21 @@ export const AuthProvider = ({ children }) => {
     }
   });
   const [token, setToken] = useState(() => localStorage.getItem('compliance_token') || null);
+  const [platformSettings, setPlatformSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchPlatformSettings = async () => {
+    try {
+      const res = await api.get('/public/settings');
+      if (res.data.success && res.data.data) {
+        setPlatformSettings(res.data.data);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchPlatformSettings();
+  }, []);
 
   useEffect(() => {
     const fetchMe = async () => {
@@ -49,6 +63,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('compliance_token', newToken);
         localStorage.setItem('compliance_user', JSON.stringify(newUser));
         toast.success(`Welcome, ${newUser.fullName}!`);
+        fetchPlatformSettings();
         return { success: true, user: newUser };
       }
     } catch (err) {
@@ -83,6 +98,8 @@ export const AuthProvider = ({ children }) => {
         isPlatformAdmin,
         isOrgUser,
         isAuthenticated: !!user && !!token,
+        platformSettings,
+        refreshPlatformSettings: fetchPlatformSettings,
       }}
     >
       {children}

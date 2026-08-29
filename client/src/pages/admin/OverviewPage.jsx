@@ -121,7 +121,7 @@ export const OverviewPage = () => {
               </h3>
             </div>
             <Link
-              to="/admin/subscriptions"
+              to="/admin/renewals"
               className="text-xs font-bold text-[#0086FF] hover:underline flex items-center gap-1"
             >
               View All

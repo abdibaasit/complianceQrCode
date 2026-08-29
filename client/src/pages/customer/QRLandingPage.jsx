@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
-import { AlertCircle, MessageSquareShare, Building2, Phone, MessageCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { AlertCircle, MessageSquareShare, Building2, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const QRLandingPage = () => {
   const { token } = useParams();
@@ -143,20 +143,7 @@ export const QRLandingPage = () => {
           <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-[#0086FF] group-hover:translate-x-1 transition-all" />
         </button>
 
-        {/* Optional WhatsApp Quick Action */}
-        {organization.whatsapp && (
-          <div className="pt-2">
-            <a
-              href={`https://wa.me/${organization.whatsapp.replace(/[^0-9]/g, '')}?text=Waxaan%20rabaa%20in%20aan%20idinkala%20soo%20xiriiro%20adeegga`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition-colors flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              Nagula soo xiriir WhatsApp
-            </a>
-          </div>
-        )}
+
       </div>
     </div>
   );

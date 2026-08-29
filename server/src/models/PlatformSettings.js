@@ -6,6 +6,10 @@ const platformSettingsSchema = new mongoose.Schema(
       type: String,
       default: 'Compliance QR',
     },
+    logo: {
+      type: String,
+      default: '',
+    },
     defaultServiceDurationDays: {
       type: Number,
       default: 30,

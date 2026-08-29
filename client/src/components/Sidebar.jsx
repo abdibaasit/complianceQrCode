@@ -19,7 +19,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 export const Sidebar = () => {
-  const { isPlatformAdmin, user } = useAuth();
+  const { isPlatformAdmin, user, platformSettings } = useAuth();
 
   const adminNavItems = [
     { label: 'Overview', to: '/admin/overview', icon: LayoutDashboard },
@@ -27,11 +27,8 @@ export const Sidebar = () => {
     { label: 'QR Code Center', to: '/admin/qr-center', icon: QrCode },
     { label: 'Complaints (Cabasho)', to: '/admin/complaints', icon: AlertCircle },
     { label: 'Feedback (Talo)', to: '/admin/feedback', icon: MessageSquareShare },
-    { label: 'Subscriptions', to: '/admin/subscriptions', icon: CalendarCheck2 },
-    { label: 'Renewal Requests', to: '/admin/renewals', icon: FileCheckIcon },
-    { label: 'Payments', to: '/admin/payments', icon: CreditCard },
+    { label: 'Renewal Requests', to: '/admin/renewals', icon: CalendarCheck2 },
     { label: 'Analytics & Reports', to: '/admin/reports', icon: BarChart3 },
-    { label: 'Notifications', to: '/admin/notifications', icon: BellRing },
     { label: 'Audit Logs', to: '/admin/audit-logs', icon: FileClock },
     { label: 'Settings', to: '/admin/settings', icon: Settings },
   ];
@@ -47,16 +44,34 @@ export const Sidebar = () => {
 
   const navItems = isPlatformAdmin ? adminNavItems : orgNavItems;
 
+  const currentLogo = isPlatformAdmin
+    ? platformSettings?.logo
+    : user?.organization?.logo;
+
   return (
     <aside className="w-64 bg-[#2C3925] text-white flex flex-col flex-shrink-0 min-h-screen border-r border-[#212B1C]">
       {/* Brand Header */}
       <div className="h-16 px-5 flex items-center gap-3 border-b border-[#3D4F34]">
-        <div className="w-9 h-9 rounded-xl bg-[#0086FF] flex items-center justify-center text-white shadow-md">
-          <QrCode className="w-5 h-5" />
-        </div>
+        {currentLogo ? (
+          <img
+            src={currentLogo}
+            alt=""
+            className="w-9 h-9 rounded-xl bg-white object-contain p-1 border border-white/20 shadow-md"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-xl bg-[#0086FF] flex items-center justify-center text-white shadow-md">
+            <QrCode className="w-5 h-5" />
+          </div>
+        )}
         <div>
-          <h1 className="font-extrabold text-sm tracking-tight text-white leading-none">
-            COMPLIANCE <span className="text-[#0086FF]">QR</span>
+          <h1 className="font-extrabold text-sm tracking-tight text-white leading-none truncate max-w-[150px]">
+            {isPlatformAdmin ? (
+              platformSettings?.platformName || (
+                <>COMPLIANCE <span className="text-[#0086FF]">QR</span></>
+              )
+            ) : (
+              user?.organization?.name || 'COMPLIANCE QR'
+            )}
           </h1>
           <p className="text-[10px] text-emerald-200/70 font-medium tracking-wider uppercase mt-0.5">
             {isPlatformAdmin ? 'Platform Admin' : 'Org Portal'}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import { DataTable } from '../../components/DataTable';
 import { StatusBadge } from '../../components/StatusBadge';
+import { Modal } from '../../components/Modal';
 import {
   Building2,
   PlusCircle,
@@ -11,6 +12,8 @@ import {
   CheckCircle,
   XCircle,
   Phone,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -23,6 +26,11 @@ export const OrganizationsPage = () => {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Delete state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchOrganizations = async () => {
     setLoading(true);
@@ -73,6 +81,24 @@ export const OrganizationsPage = () => {
       }
     } catch (err) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!orgToDelete) return;
+    try {
+      setIsDeleting(true);
+      const res = await api.delete(`/admin/organizations/${orgToDelete._id}`);
+      if (res.data.success) {
+        toast.success('Organization deleted successfully');
+        setDeleteModalOpen(false);
+        setOrgToDelete(null);
+        fetchOrganizations();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete organization');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -153,7 +179,7 @@ export const OrganizationsPage = () => {
       header: 'Actions',
       align: 'right',
       render: (org) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1.5">
           <Link
             to={`/admin/organizations/${org._id}`}
             title="View Details"
@@ -166,7 +192,7 @@ export const OrganizationsPage = () => {
             title={org.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
             className={`p-1.5 rounded-lg transition-colors ${
               org.status === 'ACTIVE'
-                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
                 : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
             }`}
           >
@@ -175,6 +201,16 @@ export const OrganizationsPage = () => {
             ) : (
               <CheckCircle className="w-4 h-4" />
             )}
+          </button>
+          <button
+            onClick={() => {
+              setOrgToDelete(org);
+              setDeleteModalOpen(true);
+            }}
+            title="Delete Organization"
+            className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -215,13 +251,8 @@ export const OrganizationsPage = () => {
           <option value="">All Categories</option>
           <option value="Hospital">Hospital</option>
           <option value="Hotel">Hotel</option>
-          <option value="Restaurant">Restaurant</option>
-          <option value="University">University</option>
-          <option value="School">School</option>
           <option value="Company">Company</option>
-          <option value="NGO">NGO</option>
-          <option value="Government">Government</option>
-          <option value="Other">Other</option>
+          <option value="University">University</option>
         </select>
 
         <select
@@ -255,6 +286,77 @@ export const OrganizationsPage = () => {
         emptyTitle="No organizations found"
         emptyDescription="Get started by registering an institution with the wizard."
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteModalOpen(false);
+            setOrgToDelete(null);
+          }
+        }}
+        title="Delete Organization"
+        subtitle="This permanent action will remove all linked data."
+      >
+        {orgToDelete && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-rose-800">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold">Are you sure you want to delete this organization?</p>
+                <p className="opacity-90 leading-relaxed">
+                  Deleting <span className="font-semibold">{orgToDelete.name}</span> will permanently wipe its linked logins, active QR codes, feedback submissions, payments, and subscription histories.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+              {orgToDelete.logo ? (
+                <img
+                  src={orgToDelete.logo}
+                  alt=""
+                  className="w-10 h-10 object-contain rounded-lg border border-slate-200 bg-white p-1"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-[#2C3925] text-white flex items-center justify-center font-bold text-sm">
+                  {orgToDelete.name?.charAt(0)}
+                </div>
+              )}
+              <div>
+                <p className="font-bold text-xs text-[#2F2E2D]">{orgToDelete.name}</p>
+                <p className="text-[11px] text-[#5A5856]">
+                  {orgToDelete.organizationType} • {orgToDelete.phone || 'No phone'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setOrgToDelete(null);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteOrganization}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
+

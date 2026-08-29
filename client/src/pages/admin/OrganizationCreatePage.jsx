@@ -17,6 +17,11 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+import {
+  ORGANIZATION_TYPES,
+  CATEGORY_COMPLAINTS_MAP,
+} from '../../constants/categories';
+
 export const OrganizationCreatePage = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -33,19 +38,10 @@ export const OrganizationCreatePage = () => {
     branch: 'Main Center',
     address: '',
     description: '',
-    complaintCategories: [
-      'Service Quality',
-      'Staff Conduct',
-      'Cleanliness & Hygiene',
-      'Billing & Reception',
-      'Emergency Wait Time',
-      'Facilities',
-      'Other',
-    ],
+    complaintCategories: [...CATEGORY_COMPLAINTS_MAP['Hospital']],
   });
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
-  const [newCatInput, setNewCatInput] = useState('');
 
   // Step 2: Org User Data
   const [userData, setUserData] = useState({
@@ -67,20 +63,39 @@ export const OrganizationCreatePage = () => {
     }
   };
 
-  const handleAddCategory = () => {
-    if (newCatInput.trim() && !orgData.complaintCategories.includes(newCatInput.trim())) {
+  const handleTypeChange = (newType) => {
+    const defaultCats = CATEGORY_COMPLAINTS_MAP[newType] || [];
+    setOrgData({
+      ...orgData,
+      organizationType: newType,
+      complaintCategories: [...defaultCats],
+    });
+  };
+
+  const handleToggleCategory = (cat) => {
+    const current = orgData.complaintCategories;
+    if (current.includes(cat)) {
+      if (current.length === 1) {
+        toast.error('At least 1 category must remain selected');
+        return;
+      }
       setOrgData({
         ...orgData,
-        complaintCategories: [...orgData.complaintCategories, newCatInput.trim()],
+        complaintCategories: current.filter((c) => c !== cat),
       });
-      setNewCatInput('');
+    } else {
+      setOrgData({
+        ...orgData,
+        complaintCategories: [...current, cat],
+      });
     }
   };
 
-  const handleRemoveCategory = (catToRemove) => {
+  const handleSelectAllCategories = () => {
+    const all = CATEGORY_COMPLAINTS_MAP[orgData.organizationType] || [];
     setOrgData({
       ...orgData,
-      complaintCategories: orgData.complaintCategories.filter((c) => c !== catToRemove),
+      complaintCategories: [...all],
     });
   };
 
@@ -89,6 +104,10 @@ export const OrganizationCreatePage = () => {
     e.preventDefault();
     if (!orgData.name.trim()) {
       toast.error('Organization Name is required');
+      return;
+    }
+    if (!orgData.complaintCategories || orgData.complaintCategories.length === 0) {
+      toast.error('Please select at least 1 complaint category');
       return;
     }
     // Auto-fill user phone with org phone if empty
@@ -253,19 +272,14 @@ export const OrganizationCreatePage = () => {
               </label>
               <select
                 value={orgData.organizationType}
-                onChange={(e) => setOrgData({ ...orgData, organizationType: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+                onChange={(e) => handleTypeChange(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               >
-                <option value="Hospital">Hospital</option>
-                <option value="Hotel">Hotel</option>
-                <option value="Restaurant">Restaurant</option>
-                <option value="University">University</option>
-                <option value="School">School</option>
-                <option value="Company">Company</option>
-                <option value="NGO">NGO</option>
-                <option value="Government">Government</option>
-                <option value="Office">Office</option>
-                <option value="Other">Other</option>
+                {ORGANIZATION_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -361,44 +375,56 @@ export const OrganizationCreatePage = () => {
             </div>
           </div>
 
-          {/* Custom Complaint Categories */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <label className="block text-xs font-bold text-[#2F2E2D]">
-              Complaint Categories (Cabasho Dropdown Options)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {orgData.complaintCategories.map((cat) => (
-                <span
-                  key={cat}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold"
-                >
-                  {cat}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveCategory(cat)}
-                    className="text-slate-400 hover:text-rose-600"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2 max-w-sm">
-              <input
-                type="text"
-                value={newCatInput}
-                onChange={(e) => setNewCatInput(e.target.value)}
-                placeholder="Add custom category..."
-                className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#0086FF]/20"
-              />
+          {/* 10 Specialized Complaint Categories for this Sector */}
+          <div className="space-y-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-bold text-[#2F2E2D]">
+                  Specialized Complaint Categories ({orgData.organizationType}) *
+                </label>
+                <p className="text-[11px] text-[#5A5856]">
+                  Dooro noocyada cabashooyinka 10-ka ah ee gaarka u ah xaruntaada ({orgData.complaintCategories.length} la doortay)
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={handleAddCategory}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-[#2C3925]"
+                onClick={handleSelectAllCategories}
+                className="text-[11px] font-bold text-[#0086FF] hover:underline"
               >
-                Add
+                Select All (10)
               </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {(CATEGORY_COMPLAINTS_MAP[orgData.organizationType] || []).map((cat, idx) => {
+                const isSelected = orgData.complaintCategories.includes(cat);
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => handleToggleCategory(cat)}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all text-xs ${
+                      isSelected
+                        ? 'bg-emerald-50/70 border-emerald-300 text-[#2F2E2D] font-bold shadow-xs'
+                        : 'bg-slate-50/70 border-slate-200 text-slate-500 hover:border-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 transition-colors ${
+                        isSelected
+                          ? 'bg-[#2C3925] text-white'
+                          : 'border border-slate-300 bg-white text-transparent'
+                      }`}
+                    >
+                      ✓
+                    </div>
+                    <span className="truncate flex-1">
+                      <span className="text-[10px] text-[#0086FF] mr-1">#{idx + 1}</span>
+                      {cat}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

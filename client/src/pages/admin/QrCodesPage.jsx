@@ -14,6 +14,9 @@ import {
   Eye,
   CheckCircle,
   XCircle,
+  Pencil,
+  Phone,
+  MessageCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -29,6 +32,16 @@ export const QrCodesPage = () => {
   const [previewOrg, setPreviewOrg] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Edit Organization Contact Modal
+  const [editOrg, setEditOrg] = useState(null);
+  const [editForm, setEditForm] = useState({
+    phone: '',
+    whatsapp: '',
+    displayTitle: '',
+    branch: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchQrList = async () => {
     setLoading(true);
@@ -79,6 +92,41 @@ export const QrCodesPage = () => {
     }
   };
 
+  const handleOpenEdit = (org) => {
+    setEditOrg(org);
+    setEditForm({
+      phone: org.phone || '',
+      whatsapp: org.whatsapp || '',
+      displayTitle: org.displayTitle || org.name || '',
+      branch: org.branch || '',
+    });
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editOrg) return;
+
+    setSavingEdit(true);
+    try {
+      const res = await api.patch(`/admin/organizations/${editOrg._id}`, {
+        phone: editForm.phone.trim(),
+        whatsapp: editForm.whatsapp.trim(),
+        displayTitle: editForm.displayTitle.trim(),
+        branch: editForm.branch.trim(),
+      });
+
+      if (res.data.success) {
+        toast.success('Organization phone and contact info updated!');
+        setEditOrg(null);
+        fetchQrList();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update contact info');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleRegenerate = async (orgId) => {
     if (!window.confirm('Regenerating will revoke the current QR Code immediately. Continue?')) {
       return;
@@ -109,8 +157,32 @@ export const QrCodesPage = () => {
                 {org.displayTitle || org.name}
               </Link>
             </p>
-            <p className="text-[11px] text-[#5A5856]">{org.organizationType}</p>
+            <p className="text-[11px] text-[#5A5856] flex items-center gap-2">
+              <span>{org.organizationType}</span>
+              {org.phone && (
+                <span className="text-slate-400 font-mono text-[10px]">
+                  • {org.phone}
+                </span>
+              )}
+            </p>
           </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Contact Phone',
+      render: (org) => (
+        <div className="space-y-0.5 text-xs">
+          <p className="font-semibold text-[#2F2E2D] flex items-center gap-1">
+            <Phone className="w-3 h-3 text-[#2C3925]" />
+            {org.phone || <span className="text-slate-400 font-normal">No phone</span>}
+          </p>
+          {org.whatsapp && (
+            <p className="text-[10px] text-emerald-700 flex items-center gap-1">
+              <MessageCircle className="w-3 h-3 text-emerald-600" />
+              {org.whatsapp}
+            </p>
+          )}
         </div>
       ),
     },
@@ -130,7 +202,15 @@ export const QrCodesPage = () => {
       header: 'Quick Actions',
       align: 'right',
       render: (org) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={() => handleOpenEdit(org)}
+            title="Edit Contact Number & Details"
+            className="p-1.5 rounded-lg bg-blue-50 hover:bg-[#0086FF] hover:text-white transition-colors text-[#0086FF] inline-flex items-center gap-1 text-xs font-semibold px-2.5"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit
+          </button>
           <button
             onClick={() => handleOpenPreview(org)}
             className="p-1.5 rounded-lg bg-slate-100 hover:bg-[#2C3925] hover:text-white transition-colors text-slate-600 inline-flex items-center gap-1 text-xs font-semibold px-2.5"
@@ -290,6 +370,95 @@ export const QrCodesPage = () => {
               </button>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Edit Organization Contact Modal */}
+      <Modal
+        isOpen={!!editOrg}
+        onClose={() => setEditOrg(null)}
+        title={`Edit Contact: ${editOrg?.displayTitle || editOrg?.name}`}
+      >
+        {editOrg && (
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
+              Waxaad halkan ka beddeli kartaa taleefanka xarunta (SMS Alert & Customer Contact Phone), WhatsApp number-ka, iyo magaca ka muuqda QR Poster-ka.
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Official Phone Number (Telefoonka Xarunta) *
+              </label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                placeholder="e.g. +252 61 700 1122"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-semibold"
+              />
+              <p className="text-[10px] text-[#5A5856] mt-1">
+                Telefoonkan waxaa lagu helayaa SMS alerts marka cabasho cusub soo dhacdo.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                Official WhatsApp Number (WhatsApp-ka Xarunta)
+              </label>
+              <input
+                type="tel"
+                value={editForm.whatsapp}
+                onChange={(e) => setEditForm({ ...editForm, whatsapp: e.target.value })}
+                placeholder="e.g. +252 61 700 1122"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                  Display Title on Poster (Magaca Poster-ka)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.displayTitle}
+                  onChange={(e) => setEditForm({ ...editForm, displayTitle: e.target.value })}
+                  placeholder="e.g. Isbitaalka Guud"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
+                  Branch / Location
+                </label>
+                <input
+                  type="text"
+                  value={editForm.branch}
+                  onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
+                  placeholder="e.g. Main Branch"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditOrg(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingEdit}
+                className="px-5 py-2.5 rounded-xl bg-[#0086FF] hover:bg-[#006ed6] text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50"
+              >
+                {savingEdit ? 'Saving Changes...' : 'Save & Update Phone'}
+              </button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

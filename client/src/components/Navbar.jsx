@@ -4,7 +4,7 @@ import { LogOut, User, Bell, QrCode, Shield, Building2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export const Navbar = ({ variant = 'dashboard', title }) => {
-  const { user, logout, isPlatformAdmin, isOrgUser } = useAuth();
+  const { user, logout, isPlatformAdmin, platformSettings } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -12,17 +12,31 @@ export const Navbar = ({ variant = 'dashboard', title }) => {
     navigate('/login');
   };
 
+  const currentLogo = isPlatformAdmin
+    ? platformSettings?.logo
+    : user?.organization?.logo;
+
   if (variant === 'public') {
     return (
       <header className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#2C3925] flex items-center justify-center text-white shadow-md">
-              <QrCode className="w-6 h-6 text-white" />
-            </div>
+            {platformSettings?.logo ? (
+              <img
+                src={platformSettings.logo}
+                alt=""
+                className="w-10 h-10 rounded-xl bg-white object-contain p-1 border border-slate-200 shadow-md"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-[#2C3925] flex items-center justify-center text-white shadow-md">
+                <QrCode className="w-6 h-6 text-white" />
+              </div>
+            )}
             <div>
               <span className="font-extrabold text-base tracking-tight text-[#2C3925]">
-                COMPLIANCE <span className="text-[#0086FF]">QR</span>
+                {platformSettings?.platformName || (
+                  <>COMPLIANCE <span className="text-[#0086FF]">QR</span></>
+                )}
               </span>
               <p className="text-[10px] font-medium text-[#5A5856] -mt-1 tracking-wider uppercase">
                 Feedback & Complaint Platform
@@ -71,13 +85,31 @@ export const Navbar = ({ variant = 'dashboard', title }) => {
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#EEF2EC] border border-[#2C3925]/10 text-xs">
           {isPlatformAdmin ? (
             <>
-              <Shield className="w-3.5 h-3.5 text-[#2C3925]" />
-              <span className="font-bold text-[#2C3925]">Platform Super Admin</span>
+              {platformSettings?.logo ? (
+                <img
+                  src={platformSettings.logo}
+                  alt=""
+                  className="w-4 h-4 object-contain rounded"
+                />
+              ) : (
+                <Shield className="w-3.5 h-3.5 text-[#2C3925]" />
+              )}
+              <span className="font-bold text-[#2C3925]">
+                {platformSettings?.platformName || 'Platform Super Admin'}
+              </span>
             </>
           ) : (
             <>
-              <Building2 className="w-3.5 h-3.5 text-[#0086FF]" />
-              <span className="font-bold text-[#2C3925]">
+              {user?.organization?.logo ? (
+                <img
+                  src={user.organization.logo}
+                  alt=""
+                  className="w-4 h-4 object-contain rounded"
+                />
+              ) : (
+                <Building2 className="w-3.5 h-3.5 text-[#0086FF]" />
+              )}
+              <span className="font-bold text-[#2F2E2D]">
                 {user?.organization?.name || user?.fullName}
               </span>
             </>
@@ -86,9 +118,17 @@ export const Navbar = ({ variant = 'dashboard', title }) => {
 
         {/* User profile dropdown info */}
         <div className="flex items-center gap-2.5 pl-2 sm:border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-[#2C3925] text-white flex items-center justify-center font-bold text-xs">
-            {user?.fullName?.charAt(0) || 'U'}
-          </div>
+          {currentLogo ? (
+            <img
+              src={currentLogo}
+              alt=""
+              className="w-8 h-8 rounded-full object-contain border border-slate-200 bg-white p-0.5"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-[#2C3925] text-white flex items-center justify-center font-bold text-xs">
+              {user?.fullName?.charAt(0) || 'U'}
+            </div>
+          )}
           <div className="hidden md:block text-left">
             <p className="text-xs font-bold text-[#2F2E2D] leading-none">{user?.fullName}</p>
             <p className="text-[10px] text-[#5A5856] mt-0.5 font-medium">@{user?.username}</p>

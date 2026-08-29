@@ -72,3 +72,13 @@ export const updateOrganizationStatus = asyncHandler(async (req, res) => {
     data: { organization },
   });
 });
+
+export const deleteOrganization = asyncHandler(async (req, res) => {
+  const result = await orgService.deleteOrganization(req.params.id, req.user);
+  res.status(200).json({
+    success: true,
+    message: 'Organization and all associated data deleted successfully',
+    data: result,
+  });
+});
+

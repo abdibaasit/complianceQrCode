@@ -31,6 +31,7 @@ export const authenticate = async (req, res, next) => {
       }
       req.user = {
         id: admin._id,
+        _id: admin._id,
         fullName: admin.fullName,
         username: admin.username,
         role: ROLES.PLATFORM_ADMIN,
@@ -46,6 +47,7 @@ export const authenticate = async (req, res, next) => {
 
       req.user = {
         id: orgUser._id,
+        _id: orgUser._id,
         fullName: orgUser.fullName,
         username: orgUser.username,
         phone: orgUser.phone,

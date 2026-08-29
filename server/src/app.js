@@ -21,6 +21,7 @@ import adminReportRoutes from './routes/admin.reports.routes.js';
 import adminNotificationRoutes from './routes/admin.notifications.routes.js';
 import adminAuditRoutes from './routes/admin.audit.routes.js';
 import adminSettingsRoutes from './routes/admin.settings.routes.js';
+import adminSuperadminRoutes from './routes/admin.superadmin.routes.js';
 import orgRoutes from './routes/org.routes.js';
 import publicRoutes from './routes/public.routes.js';
 
@@ -70,6 +71,7 @@ app.use('/api/admin/reports', adminReportRoutes);
 app.use('/api/admin/notifications', adminNotificationRoutes);
 app.use('/api/admin/audit-logs', adminAuditRoutes);
 app.use('/api/admin/settings', adminSettingsRoutes);
+app.use('/api/admin/superadmins', adminSuperadminRoutes);
 app.use('/api/organization', orgRoutes);
 app.use('/api/public', publicRoutes);
 

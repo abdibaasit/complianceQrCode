@@ -24,6 +24,7 @@ router.get('/', orgController.getOrganizations);
 router.get('/:id', orgController.getOrganizationById);
 router.patch('/:id', uploadLogo.single('logo'), validate(updateOrganizationSchema), orgController.updateOrganization);
 router.patch('/:id/status', orgController.updateOrganizationStatus);
+router.delete('/:id', orgController.deleteOrganization);
 
 // Linked User creation under Org
 router.post('/:id/user', validate(createOrgUserSchema), userController.createOrganizationUser);

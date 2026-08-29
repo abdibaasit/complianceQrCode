@@ -4,11 +4,13 @@ import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/authorize.js';
 import { ROLES } from '../constants/roles.js';
 
+import { uploadLogo } from '../middleware/upload.js';
+
 const router = Router();
 
 router.use(authenticate, authorize(ROLES.PLATFORM_ADMIN));
 
 router.get('/', settingsController.getSettings);
-router.patch('/', settingsController.updateSettings);
+router.patch('/', uploadLogo.single('logo'), settingsController.updateSettings);
 
 export default router;

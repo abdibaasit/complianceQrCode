@@ -1,8 +1,13 @@
 import bcrypt from 'bcryptjs';
 import { Organization } from '../models/Organization.js';
 import { OrganizationUser } from '../models/OrganizationUser.js';
+import { AdminUser } from '../models/AdminUser.js';
 import { QRCode } from '../models/QRCode.js';
 import { Subscription } from '../models/Subscription.js';
+import { CustomerSubmission } from '../models/CustomerSubmission.js';
+import { RenewalRequest } from '../models/RenewalRequest.js';
+import { Payment } from '../models/Payment.js';
+import { Notification } from '../models/Notification.js';
 import { createQrForOrganization } from './qr.service.js';
 import { startInitialSubscription, calculateSubscriptionStatus } from './subscription.service.js';
 import { generateTemporaryPassword } from '../utils/tokenGenerator.js';
@@ -19,8 +24,30 @@ export const createOrganization = async (orgData, logoPath = '', adminUser) => {
     ? orgData.complaintCategories
     : settings.defaultComplaintCategories || ['Service', 'Staff', 'Cleanliness', 'Food', 'Security', 'Facilities', 'Payment', 'Other'];
 
+  const cleanEmail = orgData.email ? orgData.email.trim().toLowerCase() : '';
+  const cleanPhone = orgData.phone ? orgData.phone.trim() : '';
+
+  // Validation: Unique Organization Email
+  if (cleanEmail) {
+    const existingOrgEmail = await Organization.findOne({ email: cleanEmail });
+    if (existingOrgEmail) {
+      throw new ApiError(409, `Email "${cleanEmail}" is already registered by another organization (${existingOrgEmail.name}).`);
+    }
+  }
+
+  // Validation: Unique Organization Phone
+  if (cleanPhone) {
+    const existingOrgPhone = await Organization.findOne({ phone: cleanPhone });
+    if (existingOrgPhone) {
+      throw new ApiError(409, `Phone number "${cleanPhone}" is already registered to another organization (${existingOrgPhone.name}).`);
+    }
+  }
+
   const organization = await Organization.create({
     ...orgData,
+    email: cleanEmail,
+    phone: cleanPhone,
+    whatsapp: orgData.whatsapp ? orgData.whatsapp.trim() : '',
     logo: logoPath || orgData.logo || '',
     complaintCategories: categories,
   });
@@ -48,9 +75,21 @@ export const createOrganizationUser = async (organizationId, userData, adminUser
   }
 
   const cleanUsername = userData.username.toLowerCase().trim();
-  const existingUser = await OrganizationUser.findOne({ username: cleanUsername });
-  if (existingUser) {
-    throw new ApiError(409, 'Username is already taken');
+  const cleanPhone = userData.phone ? userData.phone.trim() : '';
+
+  // Validation: Unique Username across OrganizationUser & AdminUser
+  const existingOrgUser = await OrganizationUser.findOne({ username: cleanUsername });
+  const existingAdminUser = await AdminUser.findOne({ username: cleanUsername });
+  if (existingOrgUser || existingAdminUser) {
+    throw new ApiError(409, `Username "${cleanUsername}" is already taken.`);
+  }
+
+  // Validation: Unique Phone Number for Organization User
+  if (cleanPhone) {
+    const existingPhoneUser = await OrganizationUser.findOne({ phone: cleanPhone });
+    if (existingPhoneUser) {
+      throw new ApiError(409, `Phone number "${cleanPhone}" is already registered to another representative user (${existingPhoneUser.fullName}).`);
+    }
   }
 
   // Generate temporary password if not explicitly supplied
@@ -60,9 +99,9 @@ export const createOrganizationUser = async (organizationId, userData, adminUser
 
   const orgUser = await OrganizationUser.create({
     organizationId,
-    fullName: userData.fullName,
+    fullName: userData.fullName.trim(),
     username: cleanUsername,
-    phone: userData.phone,
+    phone: cleanPhone,
     passwordHash,
     mustChangePassword: true,
     status: 'ACTIVE',
@@ -94,6 +133,41 @@ export const createOrganizationUser = async (organizationId, userData, adminUser
  * Complete Guided Wizard: Creates Org + OrgUser + Generates QR + Starts 30-day subscription in one unified transaction/workflow.
  */
 export const createCompleteOrganization = async ({ orgData, userData, logoPath }, adminUser) => {
+  // Pre-validate all unique constraints before creating any database record
+  const cleanOrgEmail = orgData?.email ? orgData.email.trim().toLowerCase() : '';
+  const cleanOrgPhone = orgData?.phone ? orgData.phone.trim() : '';
+  const cleanUserUsername = userData?.username ? userData.username.toLowerCase().trim() : '';
+  const cleanUserPhone = userData?.phone ? userData.phone.trim() : '';
+
+  if (cleanOrgEmail) {
+    const existingOrgEmail = await Organization.findOne({ email: cleanOrgEmail });
+    if (existingOrgEmail) {
+      throw new ApiError(409, `Organization email "${cleanOrgEmail}" is already registered by "${existingOrgEmail.name}".`);
+    }
+  }
+
+  if (cleanOrgPhone) {
+    const existingOrgPhone = await Organization.findOne({ phone: cleanOrgPhone });
+    if (existingOrgPhone) {
+      throw new ApiError(409, `Organization phone "${cleanOrgPhone}" is already registered to "${existingOrgPhone.name}".`);
+    }
+  }
+
+  if (cleanUserUsername) {
+    const existingOrgUser = await OrganizationUser.findOne({ username: cleanUserUsername });
+    const existingAdminUser = await AdminUser.findOne({ username: cleanUserUsername });
+    if (existingOrgUser || existingAdminUser) {
+      throw new ApiError(409, `Representative username "${cleanUserUsername}" is already taken.`);
+    }
+  }
+
+  if (cleanUserPhone) {
+    const existingPhoneUser = await OrganizationUser.findOne({ phone: cleanUserPhone });
+    if (existingPhoneUser) {
+      throw new ApiError(409, `Representative phone "${cleanUserPhone}" is already registered to user "${existingPhoneUser.fullName}".`);
+    }
+  }
+
   // 1. Create Organization
   const organization = await createOrganization(orgData, logoPath, adminUser);
 
@@ -210,6 +284,30 @@ export const updateOrganization = async (id, updateData, logoPath = null, adminU
     updateData.logo = logoPath;
   }
 
+  // Validate unique email if provided
+  if (updateData.email !== undefined) {
+    const cleanEmail = updateData.email ? updateData.email.trim().toLowerCase() : '';
+    if (cleanEmail) {
+      const conflict = await Organization.findOne({ email: cleanEmail, _id: { $ne: id } });
+      if (conflict) {
+        throw new ApiError(409, `Email "${cleanEmail}" is already registered by another organization (${conflict.name}).`);
+      }
+    }
+    updateData.email = cleanEmail;
+  }
+
+  // Validate unique phone if provided
+  if (updateData.phone !== undefined) {
+    const cleanPhone = updateData.phone ? updateData.phone.trim() : '';
+    if (cleanPhone) {
+      const conflict = await Organization.findOne({ phone: cleanPhone, _id: { $ne: id } });
+      if (conflict) {
+        throw new ApiError(409, `Phone number "${cleanPhone}" is already registered to another organization (${conflict.name}).`);
+      }
+    }
+    updateData.phone = cleanPhone;
+  }
+
   const updatedOrg = await Organization.findByIdAndUpdate(id, updateData, { new: true })
     .populate('activeQrId')
     .populate('activeSubscriptionId');
@@ -226,3 +324,42 @@ export const updateOrganization = async (id, updateData, logoPath = null, adminU
 
   return updatedOrg;
 };
+
+/**
+ * Delete organization and all associated data (Admin only).
+ */
+export const deleteOrganization = async (id, adminUser) => {
+  const organization = await Organization.findById(id);
+  if (!organization) {
+    throw new ApiError(404, 'Organization not found');
+  }
+
+  // Cascade delete all related records
+  await Promise.all([
+    Organization.findByIdAndDelete(id),
+    OrganizationUser.deleteMany({ organizationId: id }),
+    QRCode.deleteMany({ organizationId: id }),
+    Subscription.deleteMany({ organizationId: id }),
+    RenewalRequest.deleteMany({ organizationId: id }),
+    Payment.deleteMany({ organizationId: id }),
+    Notification.deleteMany({ organizationId: id }),
+    CustomerSubmission.deleteMany({ organizationId: id }),
+  ]);
+
+  await logAudit({
+    actorId: adminUser._id,
+    actorName: adminUser.fullName,
+    actorRole: adminUser.role,
+    action: 'ORGANIZATION_DELETED',
+    resourceType: 'Organization',
+    resourceId: id,
+    metadata: {
+      name: organization.name,
+      displayTitle: organization.displayTitle,
+      organizationType: organization.organizationType,
+    },
+  });
+
+  return { id, name: organization.name };
+};
+

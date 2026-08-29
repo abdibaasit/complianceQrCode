@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
+import { ChatbotWidget } from '../components/ChatbotWidget';
 import { QrCode, Shield, CheckCircle2, Phone, Mail, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -11,6 +12,9 @@ export const PublicLayout = () => {
       <main className="flex-1">
         <Outlet />
       </main>
+
+      {/* Floating AI Chatbot for Public Visitors */}
+      <ChatbotWidget mode="PUBLIC" />
 
       {/* Footer */}
       <footer className="bg-[#2C3925] text-white border-t border-[#212B1C] pt-12 pb-8">

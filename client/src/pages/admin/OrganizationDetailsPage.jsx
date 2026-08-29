@@ -23,6 +23,8 @@ import {
   ArrowLeft,
   CheckCircle,
   FileText,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -38,6 +40,8 @@ export const OrganizationDetailsPage = () => {
   // Modals state
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Edit form state
@@ -160,6 +164,22 @@ export const OrganizationDetailsPage = () => {
     }
   };
 
+  const handleDeleteOrganization = async () => {
+    try {
+      setIsDeleting(true);
+      const res = await api.delete(`/admin/organizations/${id}`);
+      if (res.data.success) {
+        toast.success('Organization deleted successfully');
+        setIsDeleteOpen(false);
+        navigate('/admin/organizations');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete organization');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading institution profile..." />;
   }
@@ -220,6 +240,13 @@ export const OrganizationDetailsPage = () => {
           >
             <CreditCard className="w-3.5 h-3.5" />
             Record Payment / Extend
+          </button>
+          <button
+            onClick={() => setIsDeleteOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold shadow-sm transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
           </button>
         </div>
       </div>
@@ -553,17 +580,12 @@ export const OrganizationDetailsPage = () => {
                 onChange={(e) =>
                   setEditForm({ ...editForm, organizationType: e.target.value })
                 }
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               >
                 <option value="Hospital">Hospital</option>
                 <option value="Hotel">Hotel</option>
-                <option value="Restaurant">Restaurant</option>
-                <option value="University">University</option>
-                <option value="School">School</option>
                 <option value="Company">Company</option>
-                <option value="NGO">NGO</option>
-                <option value="Government">Government</option>
-                <option value="Other">Other</option>
+                <option value="University">University</option>
               </select>
             </div>
 
@@ -685,7 +707,7 @@ export const OrganizationDetailsPage = () => {
 
           <div>
             <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-              Payment Method
+              Payment Gateway / Method
             </label>
             <select
               value={paymentForm.paymentMethod}
@@ -697,8 +719,9 @@ export const OrganizationDetailsPage = () => {
               <option value="EVC_PLUS">EVC Plus (Hormuud)</option>
               <option value="ZAAD">ZAAD (Telesom)</option>
               <option value="SAHAL">Sahal (Golis)</option>
-              <option value="CASH">Cash / Physical</option>
-              <option value="BANK_TRANSFER">Bank Wire / Premier / IBS</option>
+              <option value="EDAHAB">eDahab (Somtel)</option>
+              <option value="CASH">Cash / Physical Slip</option>
+              <option value="BANK_TRANSFER">Bank Transfer (Premier, IBS, etc.)</option>
               <option value="OTHER">Other Provider</option>
             </select>
           </div>
@@ -747,6 +770,68 @@ export const OrganizationDetailsPage = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => {
+          if (!isDeleting) setIsDeleteOpen(false);
+        }}
+        title="Delete Organization"
+        subtitle="This permanent action will remove all linked data."
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-rose-800">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 text-rose-600 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold">Are you sure you want to delete this organization?</p>
+              <p className="opacity-90 leading-relaxed">
+                Deleting <span className="font-semibold">{org.name}</span> will permanently remove its portal logins, active QR codes, feedback submissions, payments, and subscription records.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+            {org.logo ? (
+              <img
+                src={org.logo}
+                alt=""
+                className="w-10 h-10 object-contain rounded-lg border border-slate-200 bg-white p-1"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-[#2C3925] text-white flex items-center justify-center font-bold text-sm">
+                {org.name?.charAt(0)}
+              </div>
+            )}
+            <div>
+              <p className="font-bold text-xs text-[#2F2E2D]">{org.name}</p>
+              <p className="text-[11px] text-[#5A5856]">
+                {org.organizationType} • {org.phone || 'No phone'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={() => setIsDeleteOpen(false)}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={handleDeleteOrganization}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
