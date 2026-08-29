@@ -1,5 +1,15 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import fs from 'fs';
+
+// Look for .env in current directory or in server directory
+if (fs.existsSync(path.resolve('server/.env'))) {
+  dotenv.config({ path: path.resolve('server/.env') });
+} else if (fs.existsSync(path.resolve('.env'))) {
+  dotenv.config({ path: path.resolve('.env') });
+} else {
+  dotenv.config();
+}
 
 export const ENV = {
   NODE_ENV: process.env.NODE_ENV || 'development',
