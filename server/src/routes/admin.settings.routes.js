@@ -12,5 +12,8 @@ router.use(authenticate, authorize(ROLES.PLATFORM_ADMIN));
 
 router.get('/', settingsController.getSettings);
 router.patch('/', uploadLogo.single('logo'), settingsController.updateSettings);
+router.get('/sms-balance', settingsController.getSmsGatewayStatus);
+router.post('/test-sms', settingsController.testSmsGateway);
 
 export default router;
+

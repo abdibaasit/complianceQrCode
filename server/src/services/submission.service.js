@@ -1,6 +1,7 @@
 import { CustomerSubmission } from '../models/CustomerSubmission.js';
 import { QRCode } from '../models/QRCode.js';
 import { Organization } from '../models/Organization.js';
+import { OrganizationUser } from '../models/OrganizationUser.js';
 import { Subscription } from '../models/Subscription.js';
 import { generateReferenceNumber } from '../utils/referenceNumber.js';
 import { QR_STATUS, SUBMISSION_TYPE, NOTIFICATION_CHANNEL } from '../constants/statuses.js';
@@ -9,6 +10,8 @@ import { dispatchNotification } from './notification.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logAudit } from './audit.service.js';
 import { PlatformSettings } from '../models/PlatformSettings.js';
+import { getCachedSettings } from '../utils/settingsCache.js';
+import { formatForTabaarak } from '../integrations/sms/sms.service.js';
 
 /**
  * Validate QR token and load safe public organization profile for customer view.
@@ -21,7 +24,7 @@ export const getPublicOrgByQrToken = async (publicToken) => {
 
   const [organization, settings] = await Promise.all([
     Organization.findById(qr.organizationId).populate('activeSubscriptionId').lean(),
-    PlatformSettings.findOne().lean(),
+    getCachedSettings(),
   ]);
 
   if (!organization) {
@@ -108,31 +111,60 @@ export const createPublicSubmission = async ({
     priority: 'MEDIUM',
   });
 
-  // Async dispatch notifications (SMS and WhatsApp) to Organization
-  const notificationMsg = type === SUBMISSION_TYPE.COMPLAINT
-    ? `[CABASHO NEW] Ref: ${referenceNumber}\nOrg: ${organization.name}\nCategory: ${submission.category}\nMessage: ${submission.message}\nFrom: ${submission.customerPhone || 'Anonymous'}`
-    : `[TALO NEW] Ref: ${referenceNumber}\nOrg: ${organization.name}\nSuggestion: ${submission.message}\nSolution: ${submission.suggestedSolution || 'N/A'}`;
+  // Collect all manager/organization phone numbers to notify
+  const orgUsers = await OrganizationUser.find({
+    organizationId: organization._id,
+    status: 'ACTIVE',
+  }).select('phone fullName');
 
-  if (organization.phone) {
+  const rawPhones = [
+    organization.phone,
+    ...orgUsers.map((u) => u.phone),
+  ].filter(Boolean);
+
+  // Deduplicate phone numbers
+  const uniquePhones = [];
+  const seenClean = new Set();
+  for (const p of rawPhones) {
+    const clean = formatForTabaarak(p);
+    if (clean && !seenClean.has(clean)) {
+      seenClean.add(clean);
+      uniquePhones.push(p);
+    }
+  }
+
+  // Somali Management SMS Notification text
+  const isComplaint = type === SUBMISSION_TYPE.COMPLAINT;
+  const managementSmsText = isComplaint
+    ? `[COMPLIANCE QR - CABASHO CUSUB]\nXarunta: ${organization.displayTitle || organization.name}\nTixraac: ${referenceNumber}\nNooca: ${submission.category}\nCabashada: ${submission.message}${submission.suggestedSolution ? `\nXalka: ${submission.suggestedSolution}` : ''}\nKa: ${submission.customerPhone ? ('+' + submission.customerPhone) : 'Anonymous'}`
+    : `[COMPLIANCE QR - TALO CUSUB]\nXarunta: ${organization.displayTitle || organization.name}\nTixraac: ${referenceNumber}\nTalada: ${submission.message}${submission.suggestedSolution ? `\nSoo-jeedinta: ${submission.suggestedSolution}` : ''}\nKa: ${submission.customerPhone ? ('+' + submission.customerPhone) : 'Anonymous'}`;
+
+  // Dispatch SMS to each management phone
+  for (const phone of uniquePhones) {
     dispatchNotification({
       organizationId: organization._id,
       submissionId: submission._id,
       channel: NOTIFICATION_CHANNEL.SMS,
-      recipient: organization.phone,
+      recipient: phone,
       recipientName: organization.name,
-      message: notificationMsg,
-    }).catch((err) => console.error('[SMS Dispatch Error]', err));
+      message: managementSmsText,
+    }).catch((err) => console.error('[SMS Management Dispatch Error]', err));
   }
 
-  if (organization.whatsapp) {
+  // Also dispatch confirmation SMS to citizen/customer if phone provided
+  if (submission.customerPhone && submission.customerPhone.trim().length >= 7) {
+    const customerConfirmSms = isComplaint
+      ? `[COMPLIANCE QR - XAQIIJIN CABASHO]\nWaad ku mahadsan tahay. Cabashadaadii ku saabsaneyd ${organization.displayTitle || organization.name} waa la helay.\nTixraacaaga: ${referenceNumber}`
+      : `[COMPLIANCE QR - XAQIIJIN TALO]\nWaad ku mahadsan tahay. Taladaadii ku saabsaneyd ${organization.displayTitle || organization.name} waa la helay.\nTixraacaaga: ${referenceNumber}`;
+
     dispatchNotification({
       organizationId: organization._id,
       submissionId: submission._id,
-      channel: NOTIFICATION_CHANNEL.WHATSAPP,
-      recipient: organization.whatsapp,
-      recipientName: organization.name,
-      message: notificationMsg,
-    }).catch((err) => console.error('[WhatsApp Dispatch Error]', err));
+      channel: NOTIFICATION_CHANNEL.SMS,
+      recipient: submission.customerPhone,
+      recipientName: submission.customerName || 'Customer',
+      message: customerConfirmSms,
+    }).catch((err) => console.error('[SMS Customer Confirmation Dispatch Error]', err));
   }
 
   return {

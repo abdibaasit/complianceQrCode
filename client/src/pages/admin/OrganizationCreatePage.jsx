@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Select from 'react-select';
 import api from '../../utils/api';
 import { Modal } from '../../components/Modal';
 import {
@@ -11,8 +12,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Upload,
-  Plus,
-  Trash2,
   ShieldCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -20,7 +19,16 @@ import toast from 'react-hot-toast';
 import {
   ORGANIZATION_TYPES,
   CATEGORY_COMPLAINTS_MAP,
+  getCategoriesForType,
 } from '../../constants/categories';
+import { isValidSomaliPhone, normalizeSomaliPhone } from '../../utils/phone.util';
+
+const ORG_TYPE_OPTIONS = [
+  { value: 'HOTEL', label: 'Hotel (Huteel)' },
+  { value: 'UNIVERSITY', label: 'University (Jaamacad)' },
+  { value: 'COMPANY', label: 'Company (Shirkad / Ganacsi)' },
+  { value: 'HOSPITAL', label: 'Hospital (Isbitaal / Caafimaad)' },
+];
 
 export const OrganizationCreatePage = () => {
   const navigate = useNavigate();
@@ -28,17 +36,16 @@ export const OrganizationCreatePage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   // Step 1: Org Data
+  const [selectedType, setSelectedType] = useState(ORG_TYPE_OPTIONS[3]); // Default HOSPITAL
   const [orgData, setOrgData] = useState({
     name: '',
     displayTitle: '',
     email: '',
-    phone: '',
-    whatsapp: '',
-    organizationType: 'Hospital',
+    phoneDigits: '',
+    whatsappDigits: '',
     branch: 'Main Center',
     address: '',
     description: '',
-    complaintCategories: [...CATEGORY_COMPLAINTS_MAP['Hospital']],
   });
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
@@ -47,11 +54,11 @@ export const OrganizationCreatePage = () => {
   const [userData, setUserData] = useState({
     fullName: '',
     username: '',
-    phone: '',
+    phoneDigits: '',
     password: '',
   });
 
-  // Step 4: Final Success Result
+  // Step 3: Success Modal
   const [createdResult, setCreatedResult] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
@@ -63,73 +70,63 @@ export const OrganizationCreatePage = () => {
     }
   };
 
-  const handleTypeChange = (newType) => {
-    const defaultCats = CATEGORY_COMPLAINTS_MAP[newType] || [];
-    setOrgData({
-      ...orgData,
-      organizationType: newType,
-      complaintCategories: [...defaultCats],
-    });
-  };
-
-  const handleToggleCategory = (cat) => {
-    const current = orgData.complaintCategories;
-    if (current.includes(cat)) {
-      if (current.length === 1) {
-        toast.error('At least 1 category must remain selected');
-        return;
-      }
-      setOrgData({
-        ...orgData,
-        complaintCategories: current.filter((c) => c !== cat),
-      });
-    } else {
-      setOrgData({
-        ...orgData,
-        complaintCategories: [...current, cat],
-      });
-    }
-  };
-
-  const handleSelectAllCategories = () => {
-    const all = CATEGORY_COMPLAINTS_MAP[orgData.organizationType] || [];
-    setOrgData({
-      ...orgData,
-      complaintCategories: [...all],
-    });
-  };
-
-  // Step 1 validation & proceed to Step 2
   const handleNextToUser = (e) => {
     e.preventDefault();
     if (!orgData.name.trim()) {
-      toast.error('Organization Name is required');
+      toast.error('Magaca xarunta waa loo baahan yahay (Organization Name is required)');
       return;
     }
-    if (!orgData.complaintCategories || orgData.complaintCategories.length === 0) {
-      toast.error('Please select at least 1 complaint category');
+    if (orgData.phoneDigits.trim() && !isValidSomaliPhone(orgData.phoneDigits.trim())) {
+      toast.error('Fadlan geli 9-god oo taleefanka xarunta ah (tusaale: 615788577)');
       return;
     }
+    if (orgData.whatsappDigits.trim() && !isValidSomaliPhone(orgData.whatsappDigits.trim())) {
+      toast.error('Fadlan geli 9-god oo WhatsApp-ka ah (tusaale: 615788577)');
+      return;
+    }
+
     // Auto-fill user phone with org phone if empty
-    if (!userData.phone && orgData.phone) {
-      setUserData((prev) => ({ ...prev, phone: orgData.phone }));
+    if (!userData.phoneDigits && orgData.phoneDigits) {
+      setUserData((prev) => ({ ...prev, phoneDigits: orgData.phoneDigits }));
     }
     setCurrentStep(2);
   };
 
-  // Step 2 submit -> Execute full creation wizard (Org + User + QR + 30-Day Period)
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
-    if (!userData.fullName.trim() || !userData.username.trim() || !userData.phone.trim()) {
-      toast.error('Please fill in all required user fields');
+    if (!userData.fullName.trim() || !userData.username.trim() || !userData.phoneDigits.trim()) {
+      toast.error('Fadlan buuxi dhammaan xogta maamulaha xarunta');
+      return;
+    }
+    if (!isValidSomaliPhone(userData.phoneDigits.trim())) {
+      toast.error('Fadlan geli 9-god oo lambarka maamulaha ah (tusaale: 615788577)');
       return;
     }
 
     setSubmitting(true);
     try {
+      const payloadOrg = {
+        name: orgData.name.trim(),
+        displayTitle: orgData.displayTitle.trim() || orgData.name.trim(),
+        organizationType: selectedType.value,
+        email: orgData.email.trim() || undefined,
+        phone: orgData.phoneDigits.trim() ? normalizeSomaliPhone(orgData.phoneDigits.trim()) : undefined,
+        whatsapp: orgData.whatsappDigits.trim() ? normalizeSomaliPhone(orgData.whatsappDigits.trim()) : undefined,
+        branch: orgData.branch.trim() || 'Main Branch',
+        address: orgData.address.trim() || undefined,
+        description: orgData.description.trim() || undefined,
+      };
+
+      const payloadUser = {
+        fullName: userData.fullName.trim(),
+        username: userData.username.trim().toLowerCase(),
+        phone: normalizeSomaliPhone(userData.phoneDigits.trim()),
+        password: userData.password.trim() || undefined,
+      };
+
       const formData = new FormData();
-      formData.append('orgData', JSON.stringify(orgData));
-      formData.append('userData', JSON.stringify(userData));
+      formData.append('orgData', JSON.stringify(payloadOrg));
+      formData.append('userData', JSON.stringify(payloadUser));
       if (logoFile) {
         formData.append('logo', logoFile);
       }
@@ -142,10 +139,10 @@ export const OrganizationCreatePage = () => {
         setCreatedResult(res.data.data);
         setShowSuccessModal(true);
         setCurrentStep(3);
-        toast.success('Organization registered, QR generated, and 30-day service active!');
+        toast.success('Xarunta waa la diiwaangeliyay, QR-ka waa la sameeyay, fariinta SMS-na waa la diray!');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to complete registration wizard');
+      toast.error(err.response?.data?.message || 'Khalad ayaa dhacay diiwaangelinta');
     } finally {
       setSubmitting(false);
     }
@@ -158,6 +155,32 @@ export const OrganizationCreatePage = () => {
     toast.success('Credentials copied to clipboard!');
   };
 
+  const autoCategories = getCategoriesForType(selectedType.value);
+
+  const customSelectStyles = {
+    control: (base, state) => ({
+      ...base,
+      backgroundColor: '#F8FAFC',
+      borderColor: state.isFocused ? '#2C3925' : '#E2E8F0',
+      borderRadius: '0.875rem',
+      padding: '2px 4px',
+      fontSize: '0.8125rem',
+      fontWeight: '700',
+      boxShadow: state.isFocused ? '0 0 0 2px rgba(44, 57, 37, 0.15)' : 'none',
+      '&:hover': {
+        borderColor: '#CBD5E1',
+      },
+    }),
+    option: (base, state) => ({
+      ...base,
+      fontSize: '0.8125rem',
+      fontWeight: '600',
+      backgroundColor: state.isSelected ? '#2C3925' : state.isFocused ? '#EEF2EC' : '#FFFFFF',
+      color: state.isSelected ? '#FFFFFF' : '#1E293B',
+      cursor: 'pointer',
+    }),
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-150">
       {/* Header */}
@@ -166,7 +189,7 @@ export const OrganizationCreatePage = () => {
           Register Organization Wizard
         </h1>
         <p className="text-xs text-[#5A5856]">
-          Step-by-step guided workflow: Organization Information → User Creation → QR Generation → 30-Day Service Start.
+          Step-by-step guided workflow: Organization Info → Manager User → Automatic QR & 30-Day Service Activation.
         </p>
       </div>
 
@@ -248,39 +271,35 @@ export const OrganizationCreatePage = () => {
                 required
                 value={orgData.name}
                 onChange={(e) => setOrgData({ ...orgData, name: e.target.value })}
-                placeholder="e.g. ABC General Hospital"
+                placeholder="e.g. Jazeera Palace Hotel"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Display Title (Customer Header)
+                Display Title (Customer Facing)
               </label>
               <input
                 type="text"
                 value={orgData.displayTitle}
                 onChange={(e) => setOrgData({ ...orgData, displayTitle: e.target.value })}
-                placeholder="e.g. Isbitaalka Guud ee ABC"
+                placeholder="e.g. Huteelka Jazeera Palace"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Organization Category / Sector *
+                Organization Category / Sector (React Select) *
               </label>
-              <select
-                value={orgData.organizationType}
-                onChange={(e) => handleTypeChange(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
-              >
-                {ORGANIZATION_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={selectedType}
+                onChange={setSelectedType}
+                options={ORG_TYPE_OPTIONS}
+                styles={customSelectStyles}
+                isSearchable={false}
+              />
             </div>
 
             <div>
@@ -296,30 +315,43 @@ export const OrganizationCreatePage = () => {
               />
             </div>
 
+            {/* Somalia Phone Input */}
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Official Phone (Receives SMS Alerts)
+                Official Phone (Receives Alerts)
               </label>
-              <input
-                type="tel"
-                value={orgData.phone}
-                onChange={(e) => setOrgData({ ...orgData, phone: e.target.value })}
-                placeholder="e.g. +252 61 700 1122"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
-              />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#0086FF]/20 focus-within:border-[#0086FF]">
+                <span className="px-3 py-2.5 bg-slate-200/60 text-xs font-bold text-slate-700 border-r border-slate-200">
+                  +252
+                </span>
+                <input
+                  type="tel"
+                  maxLength={9}
+                  value={orgData.phoneDigits}
+                  onChange={(e) => setOrgData({ ...orgData, phoneDigits: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                  placeholder="615788577"
+                  className="w-full px-3 py-2 bg-transparent text-xs text-[#2F2E2D] font-mono outline-none"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Official WhatsApp (Customer Chat Button)
+                Official WhatsApp Number (Optional)
               </label>
-              <input
-                type="tel"
-                value={orgData.whatsapp}
-                onChange={(e) => setOrgData({ ...orgData, whatsapp: e.target.value })}
-                placeholder="e.g. +252 61 700 1122"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
-              />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#0086FF]/20 focus-within:border-[#0086FF]">
+                <span className="px-3 py-2.5 bg-slate-200/60 text-xs font-bold text-slate-700 border-r border-slate-200">
+                  +252
+                </span>
+                <input
+                  type="tel"
+                  maxLength={9}
+                  value={orgData.whatsappDigits}
+                  onChange={(e) => setOrgData({ ...orgData, whatsappDigits: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                  placeholder="615788577"
+                  className="w-full px-3 py-2 bg-transparent text-xs text-[#2F2E2D] font-mono outline-none"
+                />
+              </div>
             </div>
 
             <div>
@@ -330,7 +362,7 @@ export const OrganizationCreatePage = () => {
                 type="email"
                 value={orgData.email}
                 onChange={(e) => setOrgData({ ...orgData, email: e.target.value })}
-                placeholder="e.g. info@hospital.so"
+                placeholder="e.g. info@jazeera.so"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
@@ -343,7 +375,7 @@ export const OrganizationCreatePage = () => {
                 type="text"
                 value={orgData.address}
                 onChange={(e) => setOrgData({ ...orgData, address: e.target.value })}
-                placeholder="e.g. Maka Al-Mukarama St, Mogadishu"
+                placeholder="e.g. Airport Road, Mogadishu"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
@@ -352,7 +384,7 @@ export const OrganizationCreatePage = () => {
           {/* Logo Upload */}
           <div>
             <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-              Organization Logo (Displayed on QR Poster & Customer Page)
+              Organization Logo
             </label>
             <div className="flex items-center gap-4">
               {logoPreview ? (
@@ -375,56 +407,29 @@ export const OrganizationCreatePage = () => {
             </div>
           </div>
 
-          {/* 10 Specialized Complaint Categories for this Sector */}
+          {/* 10 Automatic Complaint Categories Display (Authoritative) */}
           <div className="space-y-3 pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-xs font-bold text-[#2F2E2D]">
-                  Specialized Complaint Categories ({orgData.organizationType}) *
-                </label>
-                <p className="text-[11px] text-[#5A5856]">
-                  Dooro noocyada cabashooyinka 10-ka ah ee gaarka u ah xaruntaada ({orgData.complaintCategories.length} la doortay)
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleSelectAllCategories}
-                className="text-[11px] font-bold text-[#0086FF] hover:underline"
-              >
-                Select All (10)
-              </button>
+            <div>
+              <label className="block text-xs font-bold text-[#2F2E2D]">
+                Automatically Assigned Complaint Categories ({selectedType.label})
+              </label>
+              <p className="text-[11px] text-[#5A5856]">
+                Nidaamku si toos ah ayuu 10-kan qaybood ugu qoondeeyay xaruntan:
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              {(CATEGORY_COMPLAINTS_MAP[orgData.organizationType] || []).map((cat, idx) => {
-                const isSelected = orgData.complaintCategories.includes(cat);
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => handleToggleCategory(cat)}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all text-xs ${
-                      isSelected
-                        ? 'bg-emerald-50/70 border-emerald-300 text-[#2F2E2D] font-bold shadow-xs'
-                        : 'bg-slate-50/70 border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 transition-colors ${
-                        isSelected
-                          ? 'bg-[#2C3925] text-white'
-                          : 'border border-slate-300 bg-white text-transparent'
-                      }`}
-                    >
-                      ✓
-                    </div>
-                    <span className="truncate flex-1">
-                      <span className="text-[10px] text-[#0086FF] mr-1">#{idx + 1}</span>
-                      {cat}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {autoCategories.map((cat, idx) => (
+                <div
+                  key={cat}
+                  className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 text-xs font-bold text-[#2C3925]"
+                >
+                  <span className="w-5 h-5 rounded-md bg-[#2C3925] text-white flex items-center justify-center text-[10px]">
+                    {idx + 1}
+                  </span>
+                  <span className="truncate">{cat}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -446,69 +451,75 @@ export const OrganizationCreatePage = () => {
           <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
             <UserPlus className="w-5 h-5 text-[#0086FF]" />
             <h3 className="text-base font-bold text-[#2F2E2D]">
-              Step 2: Organization Dashboard User Credentials
+              Step 2: Manager User & Automatic QR Generation
             </h3>
           </div>
 
           <div className="p-4 rounded-2xl bg-[#EEF2EC] border border-[#2C3925]/10 text-xs text-[#2C3925]">
-            <p className="font-bold">Automatic QR & 30-Day Service Generation:</p>
+            <p className="font-bold">Automatic Delivery via SMS:</p>
             <p className="mt-0.5 text-[11px] text-[#5A5856]">
-              Submitting this step will create the manager user, automatically generate a cryptographic QR code, and activate the 30-day service period.
+              Marka la diiwaangeliyo, maamulaha waxaa taleefankiisa loogu diri doonaa Login URL, Username, iyo Furaha Ku-meel-gaarka ah (Default Password).
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Full Name *
+                Manager Full Name *
               </label>
               <input
                 type="text"
                 required
                 value={userData.fullName}
                 onChange={(e) => setUserData({ ...userData, fullName: e.target.value })}
-                placeholder="e.g. Dr. Ali Hassan"
+                placeholder="e.g. Ali Mohamed Hassan"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Username (for Login) *
+                Username (Login ID) *
               </label>
               <input
                 type="text"
                 required
                 value={userData.username}
                 onChange={(e) => setUserData({ ...userData, username: e.target.value.toLowerCase() })}
-                placeholder="e.g. abchospital"
+                placeholder="e.g. jazeerapalace"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Phone Number *
+                Manager Phone Number (Receives SMS) *
               </label>
-              <input
-                type="tel"
-                required
-                value={userData.phone}
-                onChange={(e) => setUserData({ ...userData, phone: e.target.value })}
-                placeholder="e.g. +252 61 700 1122"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
-              />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#0086FF]/20 focus-within:border-[#0086FF]">
+                <span className="px-3 py-2.5 bg-slate-200/60 text-xs font-bold text-slate-700 border-r border-slate-200">
+                  +252
+                </span>
+                <input
+                  type="tel"
+                  required
+                  maxLength={9}
+                  value={userData.phoneDigits}
+                  onChange={(e) => setUserData({ ...userData, phoneDigits: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                  placeholder="615788577"
+                  className="w-full px-3 py-2 bg-transparent text-xs text-[#2F2E2D] font-mono outline-none"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[#2F2E2D] mb-1">
-                Temporary Password (Leave blank for auto-generate)
+                Initial Password (Optional — Uses Default Password if empty)
               </label>
               <input
                 type="text"
                 value={userData.password}
                 onChange={(e) => setUserData({ ...userData, password: e.target.value })}
-                placeholder="Auto-generated secure password"
+                placeholder="Default System Password"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none font-mono"
               />
             </div>
@@ -548,7 +559,6 @@ export const OrganizationCreatePage = () => {
       >
         {createdResult && (
           <div className="space-y-5">
-            {/* Credentials Card */}
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-[#2C3925]">Organization:</span>
@@ -574,7 +584,6 @@ export const OrganizationCreatePage = () => {
               </div>
             </div>
 
-            {/* Public QR Link */}
             <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 text-xs">
               <p className="font-bold text-[#0086FF] mb-1">Public QR Code URL:</p>
               <p className="font-mono text-[11px] text-slate-700 break-all">

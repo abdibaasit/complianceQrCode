@@ -17,8 +17,20 @@ export const AuthProvider = ({ children }) => {
     }
   });
   const [token, setToken] = useState(() => localStorage.getItem('compliance_token') || null);
-  const [platformSettings, setPlatformSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [platformSettings, setPlatformSettings] = useState(() => {
+    try {
+      const cached = localStorage.getItem('compliance_settings');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  // Instant loading if no token or if user is already cached in localStorage
+  const [loading, setLoading] = useState(() => {
+    const hasToken = !!localStorage.getItem('compliance_token');
+    const hasUser = !!localStorage.getItem('compliance_user');
+    return hasToken && !hasUser;
+  });
 
   const logout = useCallback(async () => {
     try {
@@ -35,22 +47,30 @@ export const AuthProvider = ({ children }) => {
       const res = await api.get('/public/settings');
       if (res.data?.success && res.data?.data) {
         setPlatformSettings(res.data.data);
+        localStorage.setItem('compliance_settings', JSON.stringify(res.data.data));
       }
     } catch {}
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     const initAuth = async () => {
       try {
-        const promises = [api.get('/public/settings').catch(() => null)];
+        const promises = [
+          api.get('/public/settings').catch(() => null)
+        ];
         if (token) {
           promises.push(api.get('/auth/me').catch(() => null));
         }
 
         const [settingsRes, meRes] = await Promise.all(promises);
 
+        if (!isMounted) return;
+
         if (settingsRes?.data?.success && settingsRes.data.data) {
           setPlatformSettings(settingsRes.data.data);
+          localStorage.setItem('compliance_settings', JSON.stringify(settingsRes.data.data));
         }
 
         if (meRes?.data?.success && meRes.data.data?.user) {
@@ -63,11 +83,15 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.error('Auth initialization error:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     initAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token, logout]);
 
   // 2 Minutes Inactivity Auto-Logout Effect
@@ -123,6 +147,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem('compliance_user', JSON.stringify(updatedUser));
+  };
+
   const handleLogout = async () => {
     await logout();
     toast.success('Logged out successfully');
@@ -139,6 +168,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         logout: handleLogout,
+        updateUser,
         isPlatformAdmin,
         isOrgUser,
         isAuthenticated: !!user && !!token,

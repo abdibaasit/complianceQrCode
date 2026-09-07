@@ -69,3 +69,17 @@ export const authenticate = async (req, res, next) => {
     }
   }
 };
+
+/**
+ * Role-based authorization middleware.
+ * Usage: authorize(ROLES.PLATFORM_ADMIN) or authorize(ROLES.PLATFORM_ADMIN, ROLES.ORGANIZATION_USER)
+ */
+export const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return next(new ApiError(403, 'You do not have permission to access this resource.'));
+    }
+    next();
+  };
+};
+

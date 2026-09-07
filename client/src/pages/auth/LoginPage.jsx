@@ -41,11 +41,7 @@ export const LoginPage = () => {
       if (result.user.role === 'PLATFORM_ADMIN') {
         navigate('/admin/overview');
       } else {
-        if (result.user.mustChangePassword) {
-          navigate('/organization/profile');
-        } else {
-          navigate('/organization/overview');
-        }
+        navigate('/organization/overview');
       }
     }
   };

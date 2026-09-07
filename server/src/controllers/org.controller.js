@@ -10,8 +10,10 @@ import { QR_STATUS } from '../constants/statuses.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export const getOverview = asyncHandler(async (req, res) => {
-  const stats = await reportService.getOrganizationOverviewStats(req.organizationId);
-  const orgDetails = await orgService.getOrganizationById(req.organizationId);
+  const [stats, orgDetails] = await Promise.all([
+    reportService.getOrganizationOverviewStats(req.organizationId),
+    orgService.getOrganizationById(req.organizationId),
+  ]);
 
   res.status(200).json({
     success: true,

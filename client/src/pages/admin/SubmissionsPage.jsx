@@ -70,16 +70,22 @@ export const SubmissionsPage = () => {
     }
   };
 
+  const isMountedRef = React.useRef(false);
+
   useEffect(() => {
     fetchSubmissions();
   }, [page, typeFilter, statusFilter, priorityFilter]);
 
-  // Debounced search
+  // Debounced search (only when search actually changes after initial mount)
   useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
       setPage(1);
       fetchSubmissions();
-    }, 300);
+    }, 250);
     return () => clearTimeout(timer);
   }, [search]);
 

@@ -65,3 +65,14 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     data: result,
   });
 });
+
+export const refresh = asyncHandler(async (req, res) => {
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+  const result = await authService.refreshSession(refreshToken);
+  res.status(200).json({
+    success: true,
+    message: 'Session refreshed successfully',
+    data: result,
+  });
+});
+

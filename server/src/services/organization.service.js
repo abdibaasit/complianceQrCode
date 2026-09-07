@@ -10,22 +10,25 @@ import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { createQrForOrganization } from './qr.service.js';
 import { startInitialSubscription, calculateSubscriptionStatus } from './subscription.service.js';
-import { generateTemporaryPassword } from '../utils/tokenGenerator.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logAudit } from './audit.service.js';
 import { PlatformSettings } from '../models/PlatformSettings.js';
+import { getCachedSettings } from '../utils/settingsCache.js';
+import { getCategoriesForType } from '../constants/categories.js';
+import { normalizeSomaliPhone } from '../utils/phone.util.js';
+import { ENV } from '../config/env.js';
+import { dispatchNotification } from './notification.service.js';
+import { NOTIFICATION_CHANNEL } from '../constants/statuses.js';
 
 /**
  * Step 1: Create Organization record
  */
 export const createOrganization = async (orgData, logoPath = '', adminUser) => {
-  const settings = (await PlatformSettings.findOne()) || {};
-  const categories = orgData.complaintCategories && orgData.complaintCategories.length > 0
-    ? orgData.complaintCategories
-    : settings.defaultComplaintCategories || ['Service', 'Staff', 'Cleanliness', 'Food', 'Security', 'Facilities', 'Payment', 'Other'];
+  const categoryType = (orgData.organizationType || 'COMPANY').toUpperCase();
+  const categories = getCategoriesForType(categoryType);
 
   const cleanEmail = orgData.email ? orgData.email.trim().toLowerCase() : '';
-  const cleanPhone = orgData.phone ? orgData.phone.trim() : '';
+  const cleanPhone = normalizeSomaliPhone(orgData.phone);
 
   // Validation: Unique Organization Email
   if (cleanEmail) {
@@ -45,9 +48,10 @@ export const createOrganization = async (orgData, logoPath = '', adminUser) => {
 
   const organization = await Organization.create({
     ...orgData,
+    organizationType: categoryType,
     email: cleanEmail,
     phone: cleanPhone,
-    whatsapp: orgData.whatsapp ? orgData.whatsapp.trim() : '',
+    whatsapp: orgData.whatsapp ? normalizeSomaliPhone(orgData.whatsapp) : '',
     logo: logoPath || orgData.logo || '',
     complaintCategories: categories,
   });
@@ -75,7 +79,7 @@ export const createOrganizationUser = async (organizationId, userData, adminUser
   }
 
   const cleanUsername = userData.username.toLowerCase().trim();
-  const cleanPhone = userData.phone ? userData.phone.trim() : '';
+  const cleanPhone = normalizeSomaliPhone(userData.phone);
 
   // Validation: Unique Username across OrganizationUser & AdminUser
   const existingOrgUser = await OrganizationUser.findOne({ username: cleanUsername });
@@ -92,8 +96,8 @@ export const createOrganizationUser = async (organizationId, userData, adminUser
     }
   }
 
-  // Generate temporary password if not explicitly supplied
-  const tempPassword = userData.password || generateTemporaryPassword();
+  // Use configured default password or explicitly provided password
+  const tempPassword = userData.password || ENV.DEFAULT_USER_PASSWORD || 'Compliance@2026';
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(tempPassword, salt);
 
@@ -130,14 +134,15 @@ export const createOrganizationUser = async (organizationId, userData, adminUser
 };
 
 /**
- * Complete Guided Wizard: Creates Org + OrgUser + Generates QR + Starts 30-day subscription in one unified transaction/workflow.
+ * Complete Guided Wizard: Creates Org + OrgUser + Generates QR + Starts 30-day subscription in one unified workflow.
+ * Dispatches async SMS credential notification independently of DB commit.
  */
 export const createCompleteOrganization = async ({ orgData, userData, logoPath }, adminUser) => {
   // Pre-validate all unique constraints before creating any database record
   const cleanOrgEmail = orgData?.email ? orgData.email.trim().toLowerCase() : '';
-  const cleanOrgPhone = orgData?.phone ? orgData.phone.trim() : '';
+  const cleanOrgPhone = normalizeSomaliPhone(orgData?.phone);
   const cleanUserUsername = userData?.username ? userData.username.toLowerCase().trim() : '';
-  const cleanUserPhone = userData?.phone ? userData.phone.trim() : '';
+  const cleanUserPhone = normalizeSomaliPhone(userData?.phone);
 
   if (cleanOrgEmail) {
     const existingOrgEmail = await Organization.findOne({ email: cleanOrgEmail });
@@ -168,10 +173,10 @@ export const createCompleteOrganization = async ({ orgData, userData, logoPath }
     }
   }
 
-  // 1. Create Organization
+  // 1. Create Organization (with 10 automatic categories)
   const organization = await createOrganization(orgData, logoPath, adminUser);
 
-  // 2. Create Org User
+  // 2. Create Org User (with default configured password & mustChangePassword=true)
   const userResult = await createOrganizationUser(organization._id, userData, adminUser);
 
   // 3. Generate QR Code
@@ -179,6 +184,22 @@ export const createCompleteOrganization = async ({ orgData, userData, logoPath }
 
   // 4. Start 30-Day Service Period
   const subscription = await startInitialSubscription(organization._id, 30);
+
+  // 5. Asynchronously dispatch SMS credentials (non-blocking)
+  if (userResult.user.phone) {
+    const loginUrl = `${ENV.PUBLIC_APP_URL || ENV.FRONTEND_URL}/login`;
+    const smsMessage = `[COMPLIANCE QR CODE - AKOON CUSUB]\nXarunta: ${organization.displayTitle || organization.name}\nUsername: ${userResult.user.username}\nPassword: ${userResult.temporaryPassword}\nLogin: ${loginUrl}\n\nFadlan beddel furahaaga marka ugu horeysa ee aad gasho.`;
+
+    dispatchNotification({
+      organizationId: organization._id,
+      channel: NOTIFICATION_CHANNEL.SMS,
+      recipient: userResult.user.phone,
+      recipientName: userResult.user.fullName,
+      message: smsMessage,
+    }).catch((err) => {
+      console.warn('[SMS Async Notification Warning] Failed to deliver credentials via SMS:', err.message);
+    });
+  }
 
   return {
     organization,
@@ -217,7 +238,7 @@ export const getOrganizationsList = async ({ search, type, status, page = 1, lim
       .limit(limit),
   ]);
 
-  const settings = (await PlatformSettings.findOne()) || {};
+  const settings = (await getCachedSettings()) || {};
 
   // Enrich with dynamic calculated subscription days
   const enriched = organizations.map((org) => {

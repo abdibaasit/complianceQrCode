@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import Select from 'react-select';
 import api from '../../utils/api';
-import { AlertCircle, ArrowLeft, Send, MessageCircle, CheckCircle2 } from 'lucide-react';
-
-const MAX_CHARS = 250;
+import { AlertCircle, ArrowLeft, Send, CheckCircle2, Copy, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { isValidSomaliPhone, normalizeSomaliPhone } from '../../utils/phone.util';
+
+const MAX_CHARS = 200;
 
 export const ComplaintFormPage = () => {
   const { token } = useParams();
@@ -16,10 +18,13 @@ export const ComplaintFormPage = () => {
   const [loading, setLoading] = useState(!orgData);
   const [submitting, setSubmitting] = useState(false);
   const [submittedResult, setSubmittedResult] = useState(null);
+  const [copied, setCopied] = useState(false);
 
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(null);
   const [message, setMessage] = useState('');
   const [suggestedSolution, setSuggestedSolution] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState('');
 
   useEffect(() => {
     if (!orgData) {
@@ -28,8 +33,9 @@ export const ComplaintFormPage = () => {
           const res = await api.get(`/public/qr/${token}`);
           if (res.data.success) {
             setOrgData(res.data.data);
-            if (res.data.data.organization?.complaintCategories?.length > 0) {
-              setCategory(res.data.data.organization.complaintCategories[0]);
+            const cats = res.data.data.organization?.complaintCategories || [];
+            if (cats.length > 0) {
+              setCategory({ value: cats[0], label: cats[0] });
             }
           }
         } catch {
@@ -39,19 +45,35 @@ export const ComplaintFormPage = () => {
         }
       };
       fetchOrg();
-    } else if (orgData.organization?.complaintCategories?.length > 0) {
-      setCategory(orgData.organization.complaintCategories[0]);
+    } else {
+      const cats = orgData.organization?.complaintCategories || [];
+      if (cats.length > 0) {
+        setCategory({ value: cats[0], label: cats[0] });
+      }
     }
   }, [token, orgData, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!category) {
+    if (!category?.value) {
       toast.error('Fadlan dooro nooca cabashada.');
       return;
     }
     if (!message.trim()) {
       toast.error('Fadlan qor cabashadaada.');
+      return;
+    }
+    if (message.trim().length > MAX_CHARS) {
+      toast.error(`Cabashadu kama badnaan karto ${MAX_CHARS} xaraf.`);
+      return;
+    }
+    if (suggestedSolution.trim().length > MAX_CHARS) {
+      toast.error(`Xalka aad soo jeedisay kama badnaan karo ${MAX_CHARS} xaraf.`);
+      return;
+    }
+
+    if (phoneDigits.trim() && !isValidSomaliPhone(phoneDigits.trim())) {
+      toast.error('Fadlan geli 9-god oo lambarka taleefanka ah (tusaale: 615788577).');
       return;
     }
 
@@ -60,10 +82,11 @@ export const ComplaintFormPage = () => {
       const res = await api.post('/public/submissions', {
         qrToken: token,
         type: 'COMPLAINT',
-        category,
+        category: category.value,
         message: message.trim(),
         suggestedSolution: suggestedSolution.trim() || undefined,
-        customerName: 'Anonymous',
+        customerName: customerName.trim() || undefined,
+        customerPhone: phoneDigits.trim() ? normalizeSomaliPhone(phoneDigits.trim()) : undefined,
       });
 
       if (res.data.success) {
@@ -81,7 +104,26 @@ export const ComplaintFormPage = () => {
 
   const handleCopyRef = (refNum) => {
     navigator.clipboard.writeText(refNum);
+    setCopied(true);
     toast.success('Number-ka tixraaca waa la koobiyay!');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFinish = () => {
+    try {
+      window.close();
+      if (!window.closed) {
+        window.open('', '_self', '');
+        window.close();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setTimeout(() => {
+      try {
+        window.location.href = 'about:blank';
+      } catch (e) {}
+    }, 150);
   };
 
   if (loading) {
@@ -89,8 +131,46 @@ export const ComplaintFormPage = () => {
   }
 
   const organization = orgData?.organization || {};
-  const whatsAppNumber = (organization.whatsapp || organization.phone || '').replace(/[^0-9]/g, '');
 
+  // Form options for React Select
+  const categoryOptions = (organization.complaintCategories || []).map((cat) => ({
+    value: cat,
+    label: cat,
+  }));
+
+  // Custom react-select styling
+  const customSelectStyles = {
+    control: (base, state) => ({
+      ...base,
+      backgroundColor: '#F8FAFC',
+      borderColor: state.isFocused ? '#E11D48' : '#E2E8F0',
+      borderRadius: '0.875rem',
+      padding: '2px 4px',
+      fontSize: '0.8125rem',
+      fontWeight: '600',
+      boxShadow: state.isFocused ? '0 0 0 2px rgba(225, 29, 72, 0.15)' : 'none',
+      '&:hover': {
+        borderColor: '#CBD5E1',
+      },
+    }),
+    option: (base, state) => ({
+      ...base,
+      fontSize: '0.8125rem',
+      fontWeight: '600',
+      backgroundColor: state.isSelected ? '#E11D48' : state.isFocused ? '#FFE4E6' : '#FFFFFF',
+      color: state.isSelected ? '#FFFFFF' : '#1E293B',
+      cursor: 'pointer',
+    }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: '0.75rem',
+      overflow: 'hidden',
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      zIndex: 50,
+    }),
+  };
+
+  // SUCCESS CONFIRMATION VIEW (Strictly no WhatsApp, per Part 4 & 31)
   if (submittedResult) {
     const sub = submittedResult.submission;
     return (
@@ -103,35 +183,45 @@ export const ComplaintFormPage = () => {
 
           <div>
             <h2 className="text-xl font-extrabold text-[#2F2E2D]">
-              Cabashadaada waa la gudbiyay! ✅
+              Si guul leh ayaa loo diray. ✅
             </h2>
             <p className="text-xs text-[#5A5856] mt-2 max-w-sm mx-auto leading-relaxed">
-              Cabashadaadu waxay si toos ah u gaartay maamulka sare ee{' '}
+              Cabashadaadu waxay si toos ah u gaartay maamulka xarunta{' '}
               <span className="font-bold text-[#2C3925]">
                 {organization.displayTitle || organization.name}
               </span>.
             </p>
           </div>
 
-          {/* WhatsApp Only — show only when number exists */}
-          {whatsAppNumber && (
-            <a
-              href={`https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(
-                `Salaam! Waxaan soo gudbiyay cabasho ku saabsan ${organization.displayTitle || organization.name}.`
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 transform hover:scale-[1.02] active:scale-95"
-            >
-              <MessageCircle className="w-5 h-5" />
-              Nagala xiriir WhatsApp Xarunta
-            </a>
+          {/* Reference Code Box */}
+          {sub?.referenceNumber && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5 max-w-sm mx-auto">
+              <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                Number-ka Tixraaca (Reference Number)
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-base font-extrabold text-[#2C3925] tracking-wider font-mono">
+                  {sub.referenceNumber}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyRef(sub.referenceNumber)}
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-[#0086FF] transition-colors"
+                  title="Koobiyeey"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Fadlan keydso lambarkan tixraaca ah si aad ula socoto cabashadaada.
+              </p>
+            </div>
           )}
 
-          {/* Done button */}
+          {/* Done / Exit button */}
           <button
-            onClick={() => navigate(`/c/${token}`)}
-            className="mt-1 px-6 py-2 rounded-full border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all"
+            onClick={handleFinish}
+            className="mt-2 px-8 py-3 rounded-2xl bg-[#2C3925] hover:bg-[#212B1C] text-xs font-extrabold text-white shadow-md transition-all active:scale-95"
           >
             Dhammaystir ✓
           </button>
@@ -166,71 +256,130 @@ export const ComplaintFormPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 1. Category Dropdown via React Select */}
           <div>
             <label className="block text-xs font-bold text-[#2F2E2D] mb-1.5">
-              1. Nooca Cabashada (Specialized Complaint Category) *
+              1. Nooca Cabashada (Complaint Category) *
             </label>
-            <select
+            <Select
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#2F2E2D] font-bold focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition-all"
-            >
-              {(organization.complaintCategories && organization.complaintCategories.length > 0
-                ? organization.complaintCategories
-                : ['General', 'Service Quality', 'Staff Conduct', 'Hygiene', 'Other']
-              ).map((cat, idx) => (
-                <option key={cat} value={cat}>
-                  {idx + 1}. {cat}
-                </option>
-              ))}
-            </select>
+              onChange={setCategory}
+              options={categoryOptions}
+              placeholder="Dooro qaybta cabashada..."
+              styles={customSelectStyles}
+              isSearchable
+              isClearable={false}
+            />
           </div>
 
+          {/* 2. Cabashadaada with Live 0/200 Counter */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-[#2F2E2D]">
-                2. Cabashadaada (Describe the Complaint) *
+                2. Cabashadaada (Describe Complaint) *
               </label>
-              <span className={`text-[11px] font-bold tabular-nums ${
-                message.length > MAX_CHARS ? 'text-rose-600' : message.length > MAX_CHARS * 0.8 ? 'text-amber-500' : 'text-slate-400'
-              }`}>
+              <span
+                className={`text-[11px] font-bold tabular-nums ${
+                  message.length >= MAX_CHARS
+                    ? 'text-rose-600'
+                    : message.length >= MAX_CHARS * 0.8
+                    ? 'text-amber-500'
+                    : 'text-slate-400'
+                }`}
+              >
                 {message.length}/{MAX_CHARS}
               </span>
             </div>
             <textarea
-              rows={5}
+              rows={4}
               required
               maxLength={MAX_CHARS}
               value={message}
               onChange={(e) => setMessage(e.target.value.slice(0, MAX_CHARS))}
-              placeholder="Faahfaahin ka bixi dhibaatada aad la kulantay..."
+              placeholder="Qor faahfaahinta cabashadaada..."
               className={`w-full px-4 py-3 bg-slate-50 border rounded-2xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 outline-none resize-none transition-all ${
                 message.length >= MAX_CHARS
                   ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500'
                   : 'border-slate-200 focus:ring-rose-500/20 focus:border-rose-500'
               }`}
             />
-            {message.length >= MAX_CHARS && (
-              <p className="text-[10px] text-rose-500 mt-1 font-semibold">Xaddiga ugu badan 250 xaraf ayaad gaadhay.</p>
-            )}
           </div>
 
+          {/* 3. Xalka aad soo jeedinayso with Live 0/200 Counter */}
           <div>
-            <label className="block text-xs font-bold text-[#2F2E2D] mb-1.5">
-              3. Sida aad jeceshahay in loo xalliyo (Optional — Sida loo xallinayo)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-[#2F2E2D]">
+                3. Xalka aad soo jeedinayso (Suggested Solution — Ikhtiyaari)
+              </label>
+              <span
+                className={`text-[11px] font-bold tabular-nums ${
+                  suggestedSolution.length >= MAX_CHARS
+                    ? 'text-rose-600'
+                    : suggestedSolution.length >= MAX_CHARS * 0.8
+                    ? 'text-amber-500'
+                    : 'text-slate-400'
+                }`}
+              >
+                {suggestedSolution.length}/{MAX_CHARS}
+              </span>
+            </div>
             <textarea
               rows={3}
+              maxLength={MAX_CHARS}
               value={suggestedSolution}
-              onChange={(e) => setSuggestedSolution(e.target.value)}
+              onChange={(e) => setSuggestedSolution(e.target.value.slice(0, MAX_CHARS))}
               placeholder="Qor sida kula tahay in arrintan loo xalliyo (ikhtiyaari)..."
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-[#2F2E2D] focus:bg-white focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none resize-none transition-all"
             />
           </div>
 
+          {/* Optional Tracking Fields */}
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+            <p className="text-[11px] font-extrabold text-[#2C3925]">
+              Xogtaada Gaarka ah (Ikhtiyaari / Optional):
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Customer Name */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Magacaaga (Customer Name)
+                </label>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Magacaaga oo buuxa (ikhtiyaari)"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none transition-all"
+                />
+              </div>
+
+              {/* Customer Phone */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Taleefankaaga (Phone Number)
+                </label>
+                <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#0086FF]/20 focus-within:border-[#0086FF]">
+                  <span className="px-3 py-2.5 bg-slate-100 text-xs font-bold text-slate-700 border-r border-slate-200">
+                    +252
+                  </span>
+                  <input
+                    type="tel"
+                    maxLength={9}
+                    value={phoneDigits}
+                    onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                    placeholder="615788577"
+                    className="w-full px-3 py-2 bg-transparent text-xs text-[#2F2E2D] font-mono outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <button
             type="submit"
-            disabled={submitting || !message.trim()}
+            disabled={submitting || !message.trim() || !category}
             className="w-full py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider active:scale-95"
           >
             <Send className="w-4 h-4" />

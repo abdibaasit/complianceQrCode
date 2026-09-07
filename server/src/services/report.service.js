@@ -6,10 +6,11 @@ import { Notification } from '../models/Notification.js';
 import { Subscription } from '../models/Subscription.js';
 import { calculateSubscriptionStatus } from './subscription.service.js';
 import { PlatformSettings } from '../models/PlatformSettings.js';
+import { getCachedSettings } from '../utils/settingsCache.js';
 import { SUBMISSION_TYPE, COMPLAINT_STATUS, RENEWAL_STATUS } from '../constants/statuses.js';
 
 export const getAdminOverviewStats = async () => {
-  const settings = (await PlatformSettings.findOne()) || {};
+  const settings = (await getCachedSettings()) || {};
 
   const [
     organizations,

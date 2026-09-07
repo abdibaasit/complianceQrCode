@@ -3,13 +3,12 @@ import crypto from 'crypto';
 /**
  * Generate human-readable unique reference numbers for Complaints and Feedback.
  * Examples:
- * CAB-20260827-A8B2
- * TAL-20260827-X4K9
+ * CMP-2026-081492
+ * TALO-2026-093821
  */
 export const generateReferenceNumber = (type = 'COMPLAINT') => {
-  const prefix = type === 'COMPLAINT' ? 'CAB' : 'TAL';
-  const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const randomSuffix = crypto.randomBytes(2).toString('hex').toUpperCase();
-  return `${prefix}-${dateStr}-${randomSuffix}`;
+  const prefix = type === 'COMPLAINT' ? 'CMP' : 'TALO';
+  const year = new Date().getFullYear();
+  const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+  return `${prefix}-${year}-${randomDigits}`;
 };

@@ -15,8 +15,57 @@ export const generateAuthToken = (user, role) => {
       username: user.username,
     },
     ENV.JWT_SECRET,
-    { expiresIn: ENV.JWT_EXPIRES_IN }
+    { expiresIn: ENV.JWT_EXPIRES_IN || '15m' }
   );
+};
+
+export const generateRefreshToken = (user, role) => {
+  return jwt.sign(
+    {
+      id: user._id,
+      role,
+      username: user.username,
+      type: 'REFRESH',
+    },
+    ENV.JWT_REFRESH_SECRET || ENV.JWT_SECRET,
+    { expiresIn: ENV.JWT_REFRESH_EXPIRES_IN || '3d' }
+  );
+};
+
+export const refreshSession = async (refreshToken) => {
+  if (!refreshToken) {
+    throw new ApiError(401, 'Refresh token required');
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, ENV.JWT_REFRESH_SECRET || ENV.JWT_SECRET);
+    let user;
+    if (decoded.role === ROLES.PLATFORM_ADMIN) {
+      user = await AdminUser.findById(decoded.id);
+      if (!user || !user.isActive) throw new ApiError(401, 'Admin user not found or inactive');
+    } else {
+      user = await OrganizationUser.findById(decoded.id).populate('organizationId');
+      if (!user || user.status !== 'ACTIVE') throw new ApiError(401, 'User not found or inactive');
+    }
+
+    const newAccessToken = generateAuthToken(user, decoded.role);
+    const newRefreshToken = generateRefreshToken(user, decoded.role);
+
+    return {
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        role: decoded.role,
+        mustChangePassword: decoded.role === ROLES.ORGANIZATION_USER ? user.mustChangePassword : false,
+        organization: decoded.role === ROLES.ORGANIZATION_USER ? user.organizationId : null,
+      },
+    };
+  } catch {
+    throw new ApiError(401, 'Invalid or expired session. Please log in again.');
+  }
 };
 
 export const login = async ({ username, password }, reqInfo = {}) => {
@@ -58,6 +107,7 @@ export const login = async ({ username, password }, reqInfo = {}) => {
   await user.save();
 
   const token = generateAuthToken(user, role);
+  const refreshToken = generateRefreshToken(user, role);
 
   await logAudit({
     actorId: user._id,
@@ -72,6 +122,7 @@ export const login = async ({ username, password }, reqInfo = {}) => {
 
   return {
     token,
+    refreshToken,
     user: {
       id: user._id,
       fullName: user.fullName,
@@ -167,7 +218,7 @@ export const requestPasswordResetOtp = async ({ identifier }) => {
     ],
   });
   let userModel = 'AdminUser';
-  let targetEmail = user?.email;
+  let targetEmail = user?.email || (user ? (ENV.SMTP_USER || 'admin@complianceqr.com') : null);
 
   // 2. Check Organization User if not found in AdminUser
   if (!user) {

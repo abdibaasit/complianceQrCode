@@ -38,8 +38,8 @@ const organizationSchema = new mongoose.Schema(
     organizationType: {
       type: String,
       required: [true, 'Organization category/type is required'],
-      enum: ['Hospital', 'Hotel', 'Company', 'University'],
-      default: 'Company',
+      enum: ['HOTEL', 'UNIVERSITY', 'COMPANY', 'HOSPITAL', 'Hospital', 'Hotel', 'Company', 'University'],
+      default: 'COMPANY',
     },
     address: {
       type: String,

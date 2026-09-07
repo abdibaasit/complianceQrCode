@@ -21,3 +21,15 @@ export const submissionRateLimiter = rateLimit({
     message: 'Too many submissions sent from this device. Please wait before trying again.',
   },
 });
+
+export const publicIntakeRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 platform complaint submissions per 15 mins
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many platform complaints from this IP. Please wait before trying again.',
+  },
+});
+

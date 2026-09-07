@@ -1,13 +1,24 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ENV } from '../config/env.js';
-import { PlatformSettings } from '../models/PlatformSettings.js';
+import { getCachedSettings } from '../utils/settingsCache.js';
 import { Organization } from '../models/Organization.js';
 import { CustomerSubmission } from '../models/CustomerSubmission.js';
 
 let genAI = null;
 
 const getGenAI = () => {
-  if (!genAI && ENV.GEMINI_API_KEY) {
+  if (!ENV.GEMINI_API_KEY) {
+    return null;
+  }
+
+  // Validate Google Generative AI key format
+  if (!ENV.GEMINI_API_KEY.startsWith('AIzaSy')) {
+    console.warn(
+      `[Chatbot Warning] GEMINI_API_KEY does not start with "AIzaSy" (Key preview: "${ENV.GEMINI_API_KEY.slice(0, 8)}..."). A valid Google AI Studio key is required for Gemini AI responses.`
+    );
+  }
+
+  if (!genAI) {
     genAI = new GoogleGenerativeAI(ENV.GEMINI_API_KEY);
   }
   return genAI;
@@ -62,23 +73,27 @@ export const handleChatbotMessage = async ({ message, history = [], mode = 'PUBL
     };
   }
 
-  const settings = (await PlatformSettings.findOne()) || {};
+  const settings = (await getCachedSettings()) || {};
   const platformName = settings.platformName || 'Compliance QR';
 
   let org = null;
   let recentComplaintsSummary = '';
 
   if (mode === 'ORGANIZATION' && orgId) {
-    org = await Organization.findById(orgId);
+    org = await Organization.findById(orgId).lean();
     if (org) {
       const recentSubs = await CustomerSubmission.find({ organizationId: org._id })
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('type category status message createdAt');
-      
+        .select('type category status message createdAt')
+        .lean();
+
       if (recentSubs.length > 0) {
-        recentComplaintsSummary = `Xogta cabashooyinkii / talooyinkii u dambeeyay ee xarunta: ` +
-          recentSubs.map((s, i) => `${i + 1}. [${s.type} - ${s.category} - Status: ${s.status}]: "${s.message.slice(0, 100)}"`).join('; ');
+        recentComplaintsSummary =
+          `Xogta cabashooyinkii / talooyinkii u dambeeyay ee xarunta: ` +
+          recentSubs
+            .map((s, i) => `${i + 1}. [${s.type} - ${s.category} - Status: ${s.status}]: "${s.message.slice(0, 100)}"`)
+            .join('; ');
       }
     }
   }
@@ -115,7 +130,6 @@ Your Job:
   try {
     const ai = getGenAI();
     if (ai) {
-      // Try gemini-1.5-flash or gemini-2.0-flash
       const model = ai.getGenerativeModel({
         model: 'gemini-1.5-flash',
         systemInstruction,
@@ -140,18 +154,24 @@ Your Job:
           modelUsed: 'gemini-1.5-flash',
         };
       }
+    } else {
+      console.warn('[Chatbot Info] GEMINI_API_KEY is not set. Using rule-engine fallback.');
     }
   } catch (err) {
-    console.warn('[Chatbot Gemini API Warning]', err.message);
+    console.error('[Chatbot Error] Google Gemini API call failed:', {
+      message: err.message,
+      status: err.status || err.statusCode,
+      details: err.errorDetails || err.stack,
+    });
   }
 
   // Fallback if AI service is temporarily unreachable
-  const fallbackReply = mode === 'PUBLIC'
-    ? getPublicFallbackResponse(message)
-    : getOrgFallbackResponse(message, org);
+  const fallbackReply =
+    mode === 'PUBLIC' ? getPublicFallbackResponse(message) : getOrgFallbackResponse(message, org);
 
   return {
     reply: fallbackReply,
     modelUsed: 'rule-engine-fallback',
   };
 };
+

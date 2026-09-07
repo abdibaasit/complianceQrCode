@@ -56,16 +56,22 @@ export const OrganizationsPage = () => {
     }
   };
 
+  const isMountedRef = React.useRef(false);
+
   useEffect(() => {
     fetchOrganizations();
   }, [page, categoryFilter, statusFilter]);
 
-  // Debounced search
+  // Debounced search (only when search actually changes after initial mount)
   useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
       setPage(1);
       fetchOrganizations();
-    }, 300);
+    }, 250);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -249,10 +255,10 @@ export const OrganizationsPage = () => {
           className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#2F2E2D] focus:ring-2 focus:ring-[#0086FF]/20 focus:border-[#0086FF] outline-none"
         >
           <option value="">All Categories</option>
-          <option value="Hospital">Hospital</option>
-          <option value="Hotel">Hotel</option>
-          <option value="Company">Company</option>
-          <option value="University">University</option>
+          <option value="HOTEL">Hotel</option>
+          <option value="UNIVERSITY">University</option>
+          <option value="COMPANY">Company</option>
+          <option value="HOSPITAL">Hospital</option>
         </select>
 
         <select

@@ -47,3 +47,35 @@
 .glow-accent {
   box-shadow: 0 0 25px -5px rgba(0, 134, 255, 0.25);
 }
+
+/* Dedicated Print Layout */
+@media print {
+  aside,
+  nav,
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  body, html, #root {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .printable-qr-poster {
+    display: block !important;
+    width: 100% !important;
+    max-width: 520px !important;
+    margin: 40px auto !important;
+    padding: 32px !important;
+    border: 3px solid #2C3925 !important;
+    border-radius: 24px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+}
+

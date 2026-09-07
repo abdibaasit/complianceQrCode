@@ -2,7 +2,7 @@ import { Subscription } from '../models/Subscription.js';
 import { Organization } from '../models/Organization.js';
 import { QRCode } from '../models/QRCode.js';
 import { SUBSCRIPTION_STATUS, ORGANIZATION_STATUS, QR_STATUS } from '../constants/statuses.js';
-import { PlatformSettings } from '../models/PlatformSettings.js';
+import { getCachedSettings } from '../utils/settingsCache.js';
 import { dispatchNotification } from './notification.service.js';
 import { NOTIFICATION_CHANNEL } from '../constants/statuses.js';
 
@@ -62,7 +62,7 @@ export const calculateSubscriptionStatus = (subscription, settings = { defaultGr
  * Initialize a new 30-day subscription for an organization.
  */
 export const startInitialSubscription = async (organizationId, durationDays = 30) => {
-  const settings = (await PlatformSettings.findOne()) || { defaultGracePeriodDays: 3, defaultServiceDurationDays: 30 };
+  const settings = (await getCachedSettings()) || { defaultGracePeriodDays: 3, defaultServiceDurationDays: 30 };
   const days = durationDays || settings.defaultServiceDurationDays || 30;
 
   const startDate = new Date();
@@ -91,7 +91,7 @@ export const startInitialSubscription = async (organizationId, durationDays = 30
  * Extend an existing subscription or create a new 30-day active period upon approved renewal.
  */
 export const extendSubscription = async (organizationId, durationDays = 30, paymentId = null) => {
-  const settings = (await PlatformSettings.findOne()) || { defaultGracePeriodDays: 3 };
+  const settings = (await getCachedSettings()) || { defaultGracePeriodDays: 3 };
   const existingSub = await Subscription.findOne({ organizationId }).sort({ createdAt: -1 });
 
   const now = new Date();
@@ -135,7 +135,7 @@ export const extendSubscription = async (organizationId, durationDays = 30, paym
  * Scheduled job logic: inspect all active subscriptions, update status, and send reminders.
  */
 export const checkAndProcessSubscriptions = async () => {
-  const settings = (await PlatformSettings.findOne()) || { defaultGracePeriodDays: 3, expiringWarningDays: 3 };
+  const settings = (await getCachedSettings()) || { defaultGracePeriodDays: 3, expiringWarningDays: 3 };
   const subscriptions = await Subscription.find().populate('organizationId');
 
   for (const sub of subscriptions) {

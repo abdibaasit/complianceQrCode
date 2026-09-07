@@ -13,6 +13,7 @@ import {
 const router = Router();
 
 router.post('/login', authRateLimiter, validate(loginSchema), authController.login);
+router.post('/refresh', authController.refresh);
 router.post('/forgot-password', authRateLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 router.post('/logout', authController.logout);
 router.get('/me', authenticate, authController.getMe);

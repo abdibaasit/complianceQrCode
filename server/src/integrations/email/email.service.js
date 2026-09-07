@@ -3,34 +3,56 @@ import { ENV } from '../../config/env.js';
 
 let transporter = null;
 
-const createTransporter = () => {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+export const initEmailService = () => {
+  if (ENV.SMTP_USER && ENV.SMTP_PASS) {
+    const isGmail = (ENV.SMTP_HOST && ENV.SMTP_HOST.includes('gmail')) || ENV.SMTP_USER.includes('@gmail.com');
+    const cleanPass = ENV.SMTP_PASS.replace(/\s+/g, '');
+
+    if (isGmail) {
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: ENV.SMTP_USER.trim(),
+          pass: cleanPass,
+        },
+      });
+      console.log(`[Email Service] Gmail SMTP configured successfully for ${ENV.SMTP_USER}`);
+    } else {
+      transporter = nodemailer.createTransport({
+        host: ENV.SMTP_HOST,
+        port: ENV.SMTP_PORT || 587,
+        secure: ENV.SMTP_SECURE,
+        auth: {
+          user: ENV.SMTP_USER.trim(),
+          pass: cleanPass,
+        },
+      });
+      console.log(`[Email Service] Custom SMTP configured with host: ${ENV.SMTP_HOST}:${ENV.SMTP_PORT}`);
+    }
+  } else {
+    console.warn(
+      '[Email Warning] SMTP not configured (SMTP_USER or SMTP_PASS missing) — password reset emails will not be delivered via SMTP. Falling back to development mock transport.'
+    );
+    transporter = nodemailer.createTransport({
+      jsonTransport: true,
     });
   }
+  return transporter;
+};
 
-  // Fallback to json transport or console logging for development
-  return nodemailer.createTransport({
-    jsonTransport: true,
-  });
+const getTransporter = () => {
+  if (!transporter) {
+    return initEmailService();
+  }
+  return transporter;
 };
 
 /**
  * Send Password Reset OTP Email
  */
 export const sendPasswordResetEmail = async ({ toEmail, recipientName, otpCode, platformName = 'Compliance QR' }) => {
-  if (!transporter) {
-    transporter = createTransporter();
-  }
-
-  const fromAddress = process.env.SMTP_FROM || `"${platformName} Security" <no-reply@complianceqr.com>`;
+  const mailer = getTransporter();
+  const fromAddress = ENV.SMTP_FROM || `"${platformName} Security" <${ENV.SMTP_USER || 'no-reply@complianceqr.com'}>`;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -77,7 +99,7 @@ export const sendPasswordResetEmail = async ({ toEmail, recipientName, otpCode, 
   `;
 
   try {
-    const info = await transporter.sendMail({
+    const info = await mailer.sendMail({
       from: fromAddress,
       to: toEmail,
       subject: `[${otpCode}] Lambarkaaga Xaqiijinta - ${platformName}`,

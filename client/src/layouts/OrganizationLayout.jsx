@@ -5,6 +5,7 @@ import { Navbar } from '../components/Navbar';
 import { ChatbotWidget } from '../components/ChatbotWidget';
 import { useAuth } from '../context/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { MustChangePasswordModal } from '../components/MustChangePasswordModal';
 
 export const OrganizationLayout = () => {
   const { user, loading, isOrgUser } = useAuth();
@@ -37,6 +38,10 @@ export const OrganizationLayout = () => {
 
       {/* Floating AI Operations Copilot for Organization */}
       <ChatbotWidget mode="ORGANIZATION" />
+
+      {/* Mandatory Password Change Modal on First Login */}
+      {user?.mustChangePassword && <MustChangePasswordModal />}
     </div>
   );
 };
+

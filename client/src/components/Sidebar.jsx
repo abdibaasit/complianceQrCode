@@ -27,6 +27,7 @@ export const Sidebar = () => {
     { label: 'QR Code Center', to: '/admin/qr-center', icon: QrCode },
     { label: 'Complaints (Cabasho)', to: '/admin/complaints', icon: AlertCircle },
     { label: 'Feedback (Talo)', to: '/admin/feedback', icon: MessageSquareShare },
+    { label: 'Platform Complaints', to: '/admin/platform-complaints', icon: Shield },
     { label: 'Renewal Requests', to: '/admin/renewals', icon: CalendarCheck2 },
     { label: 'Analytics & Reports', to: '/admin/reports', icon: BarChart3 },
     { label: 'Audit Logs', to: '/admin/audit-logs', icon: FileClock },

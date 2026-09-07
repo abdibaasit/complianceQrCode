@@ -6,10 +6,15 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-import { ENV } from './config/env.js';
+import { ENV, validateEnv } from './config/env.js';
 import { connectDB } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { startSubscriptionCronJob } from './jobs/subscriptionChecker.js';
+import { initEmailService } from './integrations/email/email.service.js';
+
+// Validate environment variables early
+validateEnv();
+initEmailService();
 
 // Route imports
 import authRoutes from './routes/auth.routes.js';
@@ -25,6 +30,8 @@ import adminSettingsRoutes from './routes/admin.settings.routes.js';
 import adminSuperadminRoutes from './routes/admin.superadmin.routes.js';
 import orgRoutes from './routes/org.routes.js';
 import publicRoutes from './routes/public.routes.js';
+
+import platformComplaintRoutes from './routes/platformComplaint.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,12 +59,26 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static file serving for uploads
 app.use('/uploads', express.static(path.resolve('uploads')));
 
-// Health check
+// Health check endpoints
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'API is healthy.',
+    data: {
+      status: 'ok',
+    },
+    meta: null,
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Compliance QR Platform API is operational',
-    timestamp: new Date().toISOString(),
+    message: 'API is healthy.',
+    data: {
+      status: 'ok',
+    },
+    meta: null,
   });
 });
 
@@ -75,6 +96,7 @@ app.use('/api/admin/settings', adminSettingsRoutes);
 app.use('/api/admin/superadmins', adminSuperadminRoutes);
 app.use('/api/organization', orgRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/platform-complaints', platformComplaintRoutes);
 
 // Centralized Error Handling
 app.use(errorHandler);

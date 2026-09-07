@@ -9,15 +9,25 @@ export const publicSubmissionSchema = z.object({
   body: z.object({
     qrToken: z.string().min(10, 'Valid QR token is required'),
     type: z.enum([SUBMISSION_TYPE.COMPLAINT, SUBMISSION_TYPE.FEEDBACK]),
-    customerName: z.string().max(100, 'Name is too long').optional(),
+    customerName: z.string().max(100, 'Name is too long').optional().nullable(),
     customerPhone: z
       .string()
       .regex(/^[0-9+\s-]*$/, 'Phone number must contain only digits')
       .optional()
+      .nullable()
       .or(z.literal('')),
     category: z.string().optional(),
-    message: z.string().min(3, 'Message must be at least 3 characters long').max(1000).trim(),
-    suggestedSolution: z.string().max(1000).optional(),
+    message: z
+      .string()
+      .min(3, 'Message must be at least 3 characters long')
+      .max(200, 'Message cannot exceed 200 characters')
+      .trim(),
+    suggestedSolution: z
+      .string()
+      .max(200, 'Suggested solution cannot exceed 200 characters')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
   }),
 });
 

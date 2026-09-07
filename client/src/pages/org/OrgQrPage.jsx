@@ -63,8 +63,8 @@ export const OrgQrPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left 6 Cols: Poster Preview */}
         <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-100 shadow-card p-6 sm:p-8 flex flex-col items-center justify-center text-center space-y-5">
-          {/* Branded Card Box */}
-          <div className="w-full max-w-sm border-2 border-[#2C3925] rounded-3xl p-6 sm:p-8 bg-white text-center space-y-4 shadow-sm relative overflow-hidden">
+          {/* Branded Card Box (Printable Target) */}
+          <div className="printable-qr-poster w-full max-w-sm border-2 border-[#2C3925] rounded-3xl p-6 sm:p-8 bg-white text-center space-y-4 shadow-sm relative overflow-hidden">
             {/* Header Accent Line */}
             <div className="absolute top-0 left-0 right-0 h-2 bg-[#2C3925]" />
 
@@ -120,26 +120,39 @@ export const OrgQrPage = () => {
         </div>
 
         {/* Right 6 Cols: Downloads, Actions & Display Best Practices */}
-        <div className="lg:col-span-6 space-y-6">
+        <div className="lg:col-span-6 space-y-6 no-print">
           {/* Quick Downloads Card */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-card p-6 space-y-4">
             <h3 className="text-sm font-extrabold text-[#2F2E2D] flex items-center gap-2">
               <Download className="w-4 h-4 text-[#0086FF]" />
-              Download Ready-to-Use Assets
+              Download & Print Assets
             </h3>
 
             <div className="space-y-3">
+              <button
+                onClick={() => window.print()}
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#0086FF] hover:bg-[#006ED6] text-white text-xs font-bold transition-all flex items-center justify-between shadow-sm"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Printer className="w-4 h-4" />
+                  <span>Print Official QR Poster (Browser Dialog)</span>
+                </div>
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-white/20 rounded">
+                  A4 / A5
+                </span>
+              </button>
+
               <a
                 href="/api/organization/qr/download"
                 download
                 className="w-full py-3.5 px-4 rounded-2xl bg-[#2C3925] hover:bg-[#212B1C] text-white text-xs font-bold transition-all flex items-center justify-between shadow-sm"
               >
                 <div className="flex items-center gap-2.5">
-                  <Printer className="w-4 h-4 text-[#0086FF]" />
-                  <span>Print-Ready High-Res Poster (PDF)</span>
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span>Download High-Res Vector PDF</span>
                 </div>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-white/20 rounded">
-                  A4 / Standee
+                  PDF
                 </span>
               </a>
 
