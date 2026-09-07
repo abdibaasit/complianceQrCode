@@ -140,40 +140,6 @@ cd complianceQrCode
 npm run install:all
 ```
 
-### 3. Configure environment variables
-
-Create `server/.env` by copying the example below:
-
-```env
-NODE_ENV=development
-PORT=5000
-MONGODB_URI=mongodb://127.0.0.1:27017/compliance-qr
-JWT_SECRET=your_jwt_secret_here
-JWT_REFRESH_SECRET=your_jwt_refresh_secret_here
-JWT_EXPIRES_IN=1d
-FRONTEND_URL=http://localhost:5173
-
-# Admin account (auto-seeded on first run)
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=Admin@123456
-ADMIN_FULLNAME=Platform Super Admin
-
-# Google Gemini AI (optional — chatbot falls back without it)
-# Get your key at https://aistudio.google.com/apikey
-GEMINI_API_KEY=your_google_ai_studio_key
-
-# SMTP Email (optional)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your@gmail.com
-SMTP_PASS=your_app_password
-SMTP_FROM="Compliance QR <your@gmail.com>"
-
-# Tabaarak SMS (optional)
-TABAARAK_SMS_NAME=your_username
-TABAARAK_SMS_PASSWORD=your_password
-TABAARAK_SMS_BASE_URL=https://sms.tabaarak.com
-```
 
 ### 4. Seed the database (optional)
 
